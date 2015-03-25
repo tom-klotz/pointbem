@@ -223,13 +223,13 @@ PetscErrorCode makeSphereChargeDistribution(PetscReal R, PetscInt numCharges, Pe
 
   PetscFunctionBeginUser;
   {
-    PetscReal vals[4];
-    PetscInt  nmax = 4, zero = 0;
+    PetscReal vals[8];
+    PetscInt  nmax = 8, i;
     PetscBool flg;
 
-    PetscOptionsGetRealArray(NULL, "-test", vals, &nmax, &flg);CHKERRQ(ierr);
+    ierr = PetscOptionsGetRealArray(NULL, "-test", vals, &nmax, &flg);CHKERRQ(ierr);
     if (flg) {
-      numCharges = 1;
+      numCharges = nmax/4;
       ierr = VecCreate(PETSC_COMM_WORLD, &data->q);CHKERRQ(ierr);
       ierr = VecSetSizes(data->q, numCharges, PETSC_DETERMINE);CHKERRQ(ierr);
       ierr = PetscObjectSetName((PetscObject) data->q, "Atomic Charges");CHKERRQ(ierr);
@@ -242,8 +242,10 @@ PetscErrorCode makeSphereChargeDistribution(PetscReal R, PetscInt numCharges, Pe
       ierr = VecDuplicate(data->q, &data->R);CHKERRQ(ierr);
       ierr = PetscObjectSetName((PetscObject) data->R, "Atomic radii");CHKERRQ(ierr);
       ierr = VecSet(data->R, 0.0);CHKERRQ(ierr);
-      ierr = VecSetValues(data->q, 1, &zero, &vals[0], INSERT_VALUES);CHKERRQ(ierr);
-      ierr = VecSetValuesBlocked(data->xyz, 1, &zero, &vals[1], INSERT_VALUES);CHKERRQ(ierr);
+      for (i = 0; i < numCharges; ++i) {
+        ierr = VecSetValues(data->q, 1, &i, &vals[i*4], INSERT_VALUES);CHKERRQ(ierr);
+        ierr = VecSetValuesBlocked(data->xyz, 1, &i, &vals[i*4+1], INSERT_VALUES);CHKERRQ(ierr);
+      }
       PetscFunctionReturn(0);
     }
   }
