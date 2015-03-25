@@ -339,7 +339,7 @@ PetscErrorCode computeEnm(PetscReal b, PetscReal epsIn, PQRData *pqr, Vec qVec, 
 {
   PetscScalar   *xyz, *q;
   PetscReal     *P;
-  PetscInt       Nq, n, m, k, idx = 0;
+  PetscInt       Nq, n, m, k, idx;
   PetscErrorCode ierr;
 
   PetscFunctionBeginUser;
@@ -352,7 +352,7 @@ PetscErrorCode computeEnm(PetscReal b, PetscReal epsIn, PQRData *pqr, Vec qVec, 
     PetscScalar r[3], val;
 
     ierr = convertToSpherical(&xyz[k*3], r);CHKERRQ(ierr);
-    for (n = 0; n <= Nmax; ++n) {
+    for (n = 0, idx = 0; n <= Nmax; ++n) {
       ierr = legendre2(n, 1, cos(r[2]), P);CHKERRQ(ierr);
       for (m = -n ; m <= n; ++m, ++idx) {
         const PetscReal Pnm  = P[PetscAbsInt(m)+n];
@@ -398,13 +398,13 @@ PetscErrorCode computeBnm(PetscReal b, PetscReal epsIn, PetscReal epsOut, PetscI
 {
   PetscReal      epsHat = 2.0*(epsIn - epsOut)/(epsIn + epsOut);
   PetscScalar   *bnm;
-  PetscInt       n, m, idx = 0;
+  PetscInt       n, m, idx;
   PetscErrorCode ierr;
 
   PetscFunctionBeginUser;
   ierr = VecCopy(Enm, Bnm);CHKERRQ(ierr);
   ierr = VecGetArray(Bnm, &bnm);CHKERRQ(ierr);
-  for (n = 0; n <= Nmax; ++n) {
+  for (n = 0, idx = 0; n <= Nmax; ++n) {
     const PetscReal val = ((epsIn - epsOut)*(n+1))/(epsIn * (n*epsIn + (n+1)*epsOut)) * (1.0/PetscPowReal(b, (2*n+1)));
 
     for (m = -n; m <= n; ++m, ++idx) {
@@ -461,7 +461,7 @@ PetscErrorCode computePotential(PQRData *pqr, PetscInt Nmax, Vec Bnm, Vec phi)
     PetscScalar r[3], val;
 
     ierr = convertToSpherical(&xyz[k*3], r);CHKERRQ(ierr);
-    for (n = 0; n <= Nmax; ++n) {
+    for (n = 0, idx = 0; n <= Nmax; ++n) {
       ierr = legendre2(n, 1, cos(r[2]), P);CHKERRQ(ierr);
       for (m = -n ; m <= n; ++m, ++idx) {
         const PetscReal Pnm  = P[PetscAbsInt(m)+n];
