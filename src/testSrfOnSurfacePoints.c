@@ -587,9 +587,7 @@ int main(int argc, char **argv)
 
   ierr = VecDuplicate(pqr.q, &react);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) react, "Reaction Potential");CHKERRQ(ierr);
-  ierr = VecView(pqr.q, 0);CHKERRQ(ierr);
   ierr = MatMult(Lref, pqr.q, react);CHKERRQ(ierr);
-  ierr = VecView(react, 0);CHKERRQ(ierr);
   ierr = VecDot(pqr.q, react, &Eref);CHKERRQ(ierr);
   Eref    *= conv_factor * 0.5;
 #if 0
@@ -601,8 +599,8 @@ int main(int argc, char **argv)
   ESimple *= conv_factor * 0.5;
 #endif
 
-  ierr = PetscPrintf(PETSC_COMM_WORLD, "Eref = %f\nESRF = %f\nError = %f\nRel. error = %f\n", Eref, ESRF, Eref-ESRF, (Eref-ESRF)/Eref);
-  ierr = PetscPrintf(PETSC_COMM_WORLD, "Eref = %f\nESimple = %f\nError = %f\nRel. error = %f\n", Eref, ESimple, Eref-ESimple, (Eref-ESimple)/Eref);
+  ierr = PetscPrintf(PETSC_COMM_WORLD, "Eref = %.6f ESRF    = %.6f Error = %.6f Rel. error = %.4f\n", Eref, ESRF, Eref-ESRF, (Eref-ESRF)/Eref);
+  ierr = PetscPrintf(PETSC_COMM_WORLD, "Eref = %.6f ESimple = %.6f Error = %.6f Rel. error = %.4f\n", Eref, ESimple, Eref-ESimple, (Eref-ESimple)/Eref);
   ierr = MatDestroy(&Lref);CHKERRQ(ierr);
   ierr = VecDestroy(&react);CHKERRQ(ierr);
   ierr = PQRDestroy(&pqr);CHKERRQ(ierr);
