@@ -359,7 +359,7 @@ PetscErrorCode computeEnm(PetscReal b, PetscReal epsIn, PQRData *pqr, Vec qVec, 
         PetscReal       ff; /* (n - |m|)! / (n + |m|)! */
         PetscReal       num, den;
 
-        //ierr = PetscPrintf(PETSC_COMM_SELF, "P(%d, |%d|): %g\n", n, m, Pnm);CHKERRQ(ierr);
+        //ierr = PetscPrintf(PETSC_COMM_SELF, "Charge %d P(%d, |%d|) %g\n", k, n, m, Pnm);CHKERRQ(ierr);
         ierr = factorial(n - PetscAbsInt(m), &num);CHKERRQ(ierr);
         ierr = factorial(n + PetscAbsInt(m), &den);CHKERRQ(ierr);
         ff   = num/den;
@@ -531,14 +531,13 @@ PetscErrorCode doAnalytical(PetscReal b, PetscReal epsIn, PetscReal epsOut, PQRD
     ierr = VecCreateSeqWithArray(PETSC_COMM_SELF, 1, Nq, &a[Nq*q], &phi);CHKERRQ(ierr);
     ierr = PetscObjectSetName((PetscObject) phi, "Reaction Potential");CHKERRQ(ierr);
     ierr = computeEnm(b, epsIn, pqr, tmpq, Nmax, Enm);CHKERRQ(ierr);
-    //ierr = VecView(Enm, 0);CHKERRQ(ierr);
     ierr = computeBnm(b, epsIn, epsOut, Nmax, Enm, Bnm);CHKERRQ(ierr);
-    //ierr = VecView(Bnm, 0);CHKERRQ(ierr);
     ierr = computePotential(pqr, Nmax, Bnm, phi);CHKERRQ(ierr);
-    ierr = VecView(phi, 0);CHKERRQ(ierr);
     ierr = VecDestroy(&phi);CHKERRQ(ierr);
   }
   ierr = MatDenseRestoreArray(*L, &a);CHKERRQ(ierr);
+  ierr = MatAssemblyBegin(*L, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatAssemblyEnd(*L, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   ierr = VecDestroy(&Enm);CHKERRQ(ierr);
   ierr = VecDestroy(&Bnm);CHKERRQ(ierr);
   ierr = VecDestroy(&tmpq);CHKERRQ(ierr);
