@@ -180,6 +180,8 @@ PetscErrorCode legendre(PetscInt l, PetscInt m, PetscScalar x, PetscScalar *leg,
   This is code to compute P^m_n(z) = (-1)^m (1 - z^2)^{m/2} \frac{d^m P_n(z)}{dz^m}
 
   leg is an arry of length nz*(l+1)
+
+  Note: http://www.accefyn.org.co/revista/Vol_37/145/541-544.pdf
 */
 PetscErrorCode legendre2(PetscInt l, PetscInt nz, PetscScalar z, PetscScalar leg[])
 {
