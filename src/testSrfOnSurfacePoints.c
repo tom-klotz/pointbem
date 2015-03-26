@@ -1,5 +1,6 @@
 #include <petsc.h>
 #include <constants.h>
+#include <surface.h>
 
 typedef struct {
   Vec q;   /* Charge values */
@@ -550,7 +551,9 @@ PetscErrorCode doAnalytical(PetscReal b, PetscReal epsIn, PetscReal epsOut, PQRD
 #define __FUNCT__ "main"
 int main(int argc, char **argv)
 {
+  DM               dm;
   PQRData          pqr;
+  Vec              vertWeights, vertNormals;
   SolvationContext ctx;
   PetscReal      q  = ELECTRON_CHARGE;
   PetscReal      Na = 6.0221415e23;
@@ -571,12 +574,12 @@ int main(int argc, char **argv)
 
   ierr = PetscInitialize(&argc, &argv, NULL, NULL);CHKERRQ(ierr);
   ierr = ProcessOptions(PETSC_COMM_WORLD, &ctx);CHKERRQ(ierr);
-  ierr = PetscStrcpy(srfFile, "./geometry/sphere_R6_vdens1.srf");CHKERRQ(ierr);
+  ierr = PetscStrcpy(srfFile, "../../jay-pointbem/geometry/sphere_R6_vdens1.srf");CHKERRQ(ierr);
   ierr = makeSphereChargeDistribution(R, ctx.numCharges, h, PETSC_DETERMINE, &pqr);
   ierr = PQRView(&pqr, PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
 
+  ierr = loadSrfIntoSurfacePoints(PETSC_COMM_WORLD, srfFile, &vertWeights, &vertNormals, &dm);CHKERRQ(ierr);
 #if 0
-  actualSRFdata   = loadSrfIntoSurfacePoints(srfFile);
   bemSRF = makeBemEcfQualMatrices(actualSRFdata, pqr, epsIn, epsOut);
 
   simplesurfdata   = makeSphereSurface(origin, R, numPoints);
@@ -603,6 +606,10 @@ int main(int argc, char **argv)
 
   ierr = PetscPrintf(PETSC_COMM_WORLD, "Eref = %.6f ESRF    = %.6f Error = %.6f Rel. error = %.4f\n", Eref, ESRF, Eref-ESRF, (Eref-ESRF)/Eref);
   ierr = PetscPrintf(PETSC_COMM_WORLD, "Eref = %.6f ESimple = %.6f Error = %.6f Rel. error = %.4f\n", Eref, ESimple, Eref-ESimple, (Eref-ESimple)/Eref);
+
+  ierr = VecDestroy(&vertWeights);CHKERRQ(ierr);
+  ierr = VecDestroy(&vertNormals);CHKERRQ(ierr);
+  ierr = DMDestroy(&dm);CHKERRQ(ierr);
   ierr = MatDestroy(&Lref);CHKERRQ(ierr);
   ierr = VecDestroy(&react);CHKERRQ(ierr);
   ierr = PQRDestroy(&pqr);CHKERRQ(ierr);
