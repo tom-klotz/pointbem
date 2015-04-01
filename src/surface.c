@@ -274,3 +274,73 @@ PetscErrorCode loadSrfIntoSurfacePoints(MPI_Comm comm, const char filename[], Ve
   ierr = VecRestoreArray(*w, &a);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
+
+#undef __FUNCT__
+#define __FUNCT__ "makeSphereSurface"
+/*@C
+  makeSphereSurface - Create a point representation of a sphereical surface
+
+  Input Parameters:
++ comm - The MPI Comm
+. origin - The center of the sphere
+. radius - The radius of the sphere
+- numpoints - The number of points to use
+
+  Output Parameters:
++ coordinates - The vertex coordinates
+. n  - The vertex normals
+. w  - The vertex weights
+- solidangle - The angular coordinates (theta, phi)
+
+  Level: developer
+
+  Note: This uses the method from Park, Bardhan, Makowski, Roux (2009), following reference in there
+
+.seealso: DMPlexCreateBardhanFromFile(), DMPlexCreateBardhan()
+@*/
+PetscErrorCode makeSphereSurface(MPI_Comm comm, PetscReal origin[], PetscReal radius, PetscInt numPoints, Vec *coordinates, Vec *w, Vec *n, Vec *solidangle)
+{
+  const PetscReal h = 2.0/numPoints;
+  PetscReal       t = -1.0 + 0.5*h;
+  PetscScalar    *coords, *ang, *normals, *weights;
+  PetscInt        i, d;
+  PetscErrorCode  ierr;
+
+  PetscFunctionBeginUser;
+  ierr = VecCreate(comm, coordinates);CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject) *coordinates, "coordinates");CHKERRQ(ierr);
+  ierr = VecSetSizes(*coordinates, numPoints*3, PETSC_DETERMINE);CHKERRQ(ierr);
+  ierr = VecSetBlockSize(*coordinates, 3);CHKERRQ(ierr);
+  ierr = VecSetType(*coordinates, VECSTANDARD);CHKERRQ(ierr);
+  ierr = VecDuplicate(*coordinates, n);CHKERRQ(ierr);
+  ierr = VecCreate(comm, solidangle);CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject) *solidangle, "solid angle");CHKERRQ(ierr);
+  ierr = VecSetSizes(*solidangle, numPoints*2, PETSC_DETERMINE);CHKERRQ(ierr);
+  ierr = VecSetBlockSize(*solidangle, 2);CHKERRQ(ierr);
+  ierr = VecSetType(*solidangle, VECSTANDARD);CHKERRQ(ierr);
+  ierr = VecCreate(comm, w);CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject) *w, "vertex weights");CHKERRQ(ierr);
+  ierr = VecSetSizes(*w, numPoints, PETSC_DETERMINE);CHKERRQ(ierr);
+  ierr = VecSetType(*w, VECSTANDARD);CHKERRQ(ierr);
+  ierr = VecGetArray(*coordinates, &coords);CHKERRQ(ierr);
+  ierr = VecGetArray(*n, &normals);CHKERRQ(ierr);
+  ierr = VecGetArray(*solidangle, &ang);CHKERRQ(ierr);
+  ierr = VecGetArray(*w, &weights);CHKERRQ(ierr);
+  for (i = 0; i < numPoints; ++i, t += h) {
+    const PetscReal theta = PetscAcosReal(t);
+    const PetscReal phi   = PetscSqrtReal(PETSC_PI*numPoints) * PetscAsinReal(t);
+
+    ang[i*2+0]     = theta;
+    ang[i*2+1]     = phi;
+    weights[i]     = 4.0 * PETSC_PI * PetscSqr(radius) / numPoints;
+    normals[i*3+0] = PetscSinReal(theta)*PetscCosReal(phi);
+    normals[i*3+1] = PetscSinReal(theta)*PetscSinReal(phi);
+    normals[i*3+2] = PetscCosReal(theta);
+    for (d = 0; d < 3; ++d) coords[i*3+d] = radius * normals[i*3+d] + origin[d];
+  }
+  ierr = VecRestoreArray(*coordinates, &coords);CHKERRQ(ierr);
+  ierr = VecRestoreArray(*n, &normals);CHKERRQ(ierr);
+  ierr = VecRestoreArray(*solidangle, &ang);CHKERRQ(ierr);
+  ierr = VecRestoreArray(*w, &weights);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
