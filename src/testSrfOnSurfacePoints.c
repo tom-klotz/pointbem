@@ -548,12 +548,204 @@ PetscErrorCode doAnalytical(PetscReal b, PetscReal epsIn, PetscReal epsOut, PQRD
 }
 
 #undef __FUNCT__
+#define __FUNCT__ "makeSurfaceToChargeOperators"
+/*@
+  makeSurfaceToChargeOperators - Make matrices???
+
+  Input Parameters:
++ coordinates - The vertex coordinates
+. w - The vertex weights
+. n - The vertex normals
+- pqrData - the PQRData context
+
+  Output Parameters:
++ potential - 
+. field - 
+. singleLayer -
+- doubleLayer - 
+
+  Level: beginner
+
+.seealso: doAnalytical()
+@*/
+PetscErrorCode makeSurfaceToChargeOperators(Vec coordinates, Vec w, Vec n, PQRData *pqr, Mat *potential, Mat *field, Mat *singleLayer, Mat *doubleLayer)
+{
+  const PetscScalar *coords, *xyz, *weights, *normals;
+  PetscInt           Nq, Np;
+  PetscInt           i, j, d;
+  PetscErrorCode     ierr;
+
+  PetscFunctionBeginUser;
+  ierr = VecGetLocalSize(pqr->q, &Nq);CHKERRQ(ierr);
+  ierr = VecGetLocalSize(w, &Np);CHKERRQ(ierr);
+  if (potential)   {ierr = MatCreateSeqDense(PETSC_COMM_SELF, Np, Nq, NULL, potential);CHKERRQ(ierr);}
+  if (field)       {ierr = MatCreateSeqDense(PETSC_COMM_SELF, Np, Nq, NULL, field);CHKERRQ(ierr);}
+  if (singleLayer) {ierr = MatCreateSeqDense(PETSC_COMM_SELF, Nq, Np, NULL, singleLayer);CHKERRQ(ierr);}
+  if (doubleLayer) {ierr = MatCreateSeqDense(PETSC_COMM_SELF, Nq, Np, NULL, doubleLayer);CHKERRQ(ierr);}
+  PetscPrintf(PETSC_COMM_SELF, "Starting\n");
+  ierr = VecGetArrayRead(coordinates, &coords);CHKERRQ(ierr);
+  ierr = VecGetArrayRead(pqr->xyz, &xyz);CHKERRQ(ierr);
+  ierr = VecGetArrayRead(w, &weights);CHKERRQ(ierr);
+  ierr = VecGetArrayRead(n, &normals);CHKERRQ(ierr);
+  for (i = 0; i < Np; ++i) {
+    for (j = 0; j < Nq; ++j) {
+      PetscScalar G, dGdn;
+      PetscReal   rvec[3];
+      PetscReal   r = 0.0, dot = 0.0;
+
+      for (d = 0; d < 3; ++d) {rvec[d] = coords[i*3+d] - xyz[j*3+d]; dot += rvec[d]*normals[i*3+d]; r += PetscSqr(rvec[d]);}
+      r = PetscSqrtReal(r);
+
+      if (r < 1e-10) {G = 0;                dGdn = 0;}
+      else           {G = 1.0/4/PETSC_PI/r; dGdn = -dot/4/PETSC_PI/PetscPowRealInt(r, 3);}
+
+      if (potential)   {ierr = MatSetValue(*potential,   i, j, G,               INSERT_VALUES);CHKERRQ(ierr);}
+      if (field)       {ierr = MatSetValue(*field,       i, j, dGdn,            INSERT_VALUES);CHKERRQ(ierr);}
+      if (singleLayer) {ierr = MatSetValue(*singleLayer, j, i, G*weights[i],    INSERT_VALUES);CHKERRQ(ierr);}
+      if (doubleLayer) {ierr = MatSetValue(*doubleLayer, j, i, dGdn*weights[i], INSERT_VALUES);CHKERRQ(ierr);}
+    }
+  }
+  ierr = VecRestoreArrayRead(coordinates, &coords);CHKERRQ(ierr);
+  ierr = VecRestoreArrayRead(pqr->xyz, &xyz);CHKERRQ(ierr);
+  ierr = VecRestoreArrayRead(w, &weights);CHKERRQ(ierr);
+  ierr = VecRestoreArrayRead(n, &normals);CHKERRQ(ierr);
+  if (potential)   {ierr = MatAssemblyBegin(*potential,   MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);ierr = MatAssemblyEnd(*potential,   MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);}
+  if (field)       {ierr = MatAssemblyBegin(*field,       MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);ierr = MatAssemblyEnd(*field,       MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);}
+  if (singleLayer) {ierr = MatAssemblyBegin(*singleLayer, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);ierr = MatAssemblyEnd(*singleLayer, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);}
+  if (doubleLayer) {ierr = MatAssemblyBegin(*doubleLayer, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);ierr = MatAssemblyEnd(*doubleLayer, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);}
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "makeSurfaceToSurfaceLaplaceOperators"
+/*@
+  makeSurfaceToSurfaceLaplaceOperators - Make matrices???
+
+  Input Parameters:
++ epsIn - the dielectric constant inside the protein
+. epsOut - the dielectric constant outside the protein
+. pqrData - the PQRData context
+. coordinates - The vertex coordinates
+. w - The vertex weights
+- n - The vertex normals
+
+  Output Parameters:
++ V - The single layer surface operator
+- K - The double layer surface operator
+
+  Level: beginner
+
+.seealso: doAnalytical()
+@*/
+PetscErrorCode makeSurfaceToSurfaceLaplaceOperators(Vec coordinates, Vec w, Vec n, Mat *V, Mat *K)
+{
+  const PetscScalar *coords, *weights, *normals;
+  PetscInt           Np, i, j, d;
+  PetscErrorCode     ierr;
+
+  PetscFunctionBeginUser;
+  ierr = VecGetLocalSize(w, &Np);CHKERRQ(ierr);
+  if (V) {ierr = MatCreateSeqDense(PETSC_COMM_SELF, Np, Np, NULL, V);CHKERRQ(ierr);}
+  if (K) {ierr = MatCreateSeqDense(PETSC_COMM_SELF, Np, Np, NULL, K);CHKERRQ(ierr);}
+  ierr = VecGetArrayRead(coordinates, &coords);CHKERRQ(ierr);
+  ierr = VecGetArrayRead(w, &weights);CHKERRQ(ierr);
+  ierr = VecGetArrayRead(n, &normals);CHKERRQ(ierr);
+  for (i = 0; i < Np; ++i) { /* Target points */
+    for (j = 0; j < Np; ++j) { /* Source points */
+      PetscReal   rvec[3];
+      PetscReal   r = 0.0, dot = 0.0;
+
+      for (d = 0; d < 3; ++d) {rvec[d] = coords[i*3+d] - coords[j*3+d]; dot += rvec[d]*normals[j*3+d]; r += PetscSqr(rvec[d]);}
+      r = PetscSqrtReal(r);
+      if (r > 1e-6) {
+        if (V) {ierr = MatSetValue(*V, i, j, weights[j]* 1/4/PETSC_PI/r, INSERT_VALUES);CHKERRQ(ierr);}
+        if (K) {ierr = MatSetValue(*K, i, j, weights[j]* dot/4/PETSC_PI/PetscPowRealInt(r,3), INSERT_VALUES);CHKERRQ(ierr);}
+      } else {
+        const PetscReal R0 = PetscSqrtReal(weights[j]/PETSC_PI); /* radius of a circle with the area assoc with surfpt j */
+        if (V) {ierr = MatSetValue(*V, i, j, (2 * PETSC_PI * R0) /4/PETSC_PI, INSERT_VALUES);CHKERRQ(ierr);}
+      }
+    }
+  }
+  ierr = VecRestoreArrayRead(coordinates, &coords);CHKERRQ(ierr);
+  ierr = VecRestoreArrayRead(w, &weights);CHKERRQ(ierr);
+  ierr = VecRestoreArrayRead(n, &normals);CHKERRQ(ierr);
+  if (V) {ierr = MatAssemblyBegin(*V, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);ierr = MatAssemblyEnd(*V, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);}
+  if (K) {ierr = MatAssemblyBegin(*K, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);ierr = MatAssemblyEnd(*K, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);}
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "makeBEMEcfQualMatrices"
+/*@
+  makeBEMEcfQualMatrices - Make matrices???
+
+  Input Parameters:
++ epsIn - the dielectric constant inside the protein
+. epsOut - the dielectric constant outside the protein
+. pqrData - the PQRData context
+. coordinates - The vertex coordinates
+. w - The vertex weights
+- n - The vertex normals
+
+  Output Parameters:
+. L - The solvation matrix
+
+  Level: beginner
+
+.seealso: doAnalytical()
+@*/
+PetscErrorCode makeBEMEcfQualMatrices(PetscReal epsIn, PetscReal epsOut, PQRData *pqr, Vec coordinates, Vec w, Vec n, Mat *L)
+{
+  const PetscReal epsHat = (epsIn + epsOut)/(epsIn - epsOut);
+  KSP             ksp;
+  PC              pc;
+  Mat             A, B, C, S, fact;
+  Vec             d;
+  PetscErrorCode  ierr;
+
+  PetscFunctionBeginUser;
+  ierr = makeSurfaceToSurfaceLaplaceOperators(coordinates, w, n, NULL, &A);CHKERRQ(ierr);
+  ierr = makeSurfaceToChargeOperators(coordinates, w, n, pqr, NULL, &B, &C, NULL);CHKERRQ(ierr);
+
+  /* B = chargesurfop.dphidnCoul */
+  ierr = MatDiagonalScale(B, w, NULL);CHKERRQ(ierr);
+  ierr = MatScale(B, -1/epsIn);CHKERRQ(ierr);
+
+  /* C = chargesurfop.slpToCharges */
+  ierr = MatScale(C, 4.0*PETSC_PI);CHKERRQ(ierr);
+  /* A = surfsurfop.K */
+  ierr = MatDiagonalScale(A, NULL, w);CHKERRQ(ierr);
+  ierr = VecDuplicate(w, &d);CHKERRQ(ierr);
+  ierr = VecCopy(w, d);CHKERRQ(ierr);
+  ierr = VecScale(d, epsHat/2.0);CHKERRQ(ierr);
+  ierr = MatDiagonalSet(A, d, ADD_VALUES);CHKERRQ(ierr);
+  ierr = VecDestroy(&d);CHKERRQ(ierr);
+
+  ierr = KSPCreate(PetscObjectComm((PetscObject) A), &ksp);CHKERRQ(ierr);
+  ierr = KSPSetType(ksp, KSPPREONLY);CHKERRQ(ierr);
+  ierr = KSPGetPC(ksp, &pc);CHKERRQ(ierr);
+  ierr = PCSetType(pc, PCLU);CHKERRQ(ierr);
+  ierr = KSPSetOperators(ksp, A, A);CHKERRQ(ierr);
+  ierr = KSPSetUp(ksp);CHKERRQ(ierr);
+  ierr = PCFactorGetMatrix(pc, &fact);CHKERRQ(ierr);
+  ierr = MatDuplicate(B, MAT_DO_NOT_COPY_VALUES, &S);CHKERRQ(ierr);
+  ierr = MatMatSolve(fact, B, S);CHKERRQ(ierr);
+  ierr = KSPDestroy(&ksp);CHKERRQ(ierr);
+  ierr = MatDestroy(&A);CHKERRQ(ierr);
+  ierr = MatDestroy(&B);CHKERRQ(ierr);
+  ierr = MatMatMult(C, S, MAT_INITIAL_MATRIX, PETSC_DEFAULT, L);CHKERRQ(ierr);
+  ierr = MatDestroy(&S);CHKERRQ(ierr);
+  ierr = MatDestroy(&C);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
 #define __FUNCT__ "main"
 int main(int argc, char **argv)
 {
   DM               dm;
   PQRData          pqr;
-  Vec              vertWeights, vertNormals;
+  Vec              vertCoords, vertWeights, vertNormals, vertCoordsSimple, vertWeightsSimple, vertNormalsSimple, vertAnglesSimple;
   SolvationContext ctx;
   PetscReal      q  = ELECTRON_CHARGE;
   PetscReal      Na = 6.0221415e23;
@@ -569,7 +761,7 @@ int main(int argc, char **argv)
   char           srfFile[PETSC_MAX_PATH_LEN];
   PetscScalar    Eref, ESimple = 0.0, ESRF = 0.0;
   Vec            react;
-  Mat            Lref;
+  Mat            Lref, LSRF, LSimple;
   PetscErrorCode ierr;
 
   ierr = PetscInitialize(&argc, &argv, NULL, NULL);CHKERRQ(ierr);
@@ -578,39 +770,45 @@ int main(int argc, char **argv)
   ierr = makeSphereChargeDistribution(R, ctx.numCharges, h, PETSC_DETERMINE, &pqr);
   ierr = PQRView(&pqr, PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
 
-  ierr = loadSrfIntoSurfacePoints(PETSC_COMM_WORLD, srfFile, &vertWeights, &vertNormals, &dm);CHKERRQ(ierr);
-#if 0
-  bemSRF = makeBemEcfQualMatrices(actualSRFdata, pqr, epsIn, epsOut);
+  ierr = loadSrfIntoSurfacePoints(PETSC_COMM_WORLD, srfFile, &vertNormals, &vertWeights, &dm);CHKERRQ(ierr);
+  ierr = makeSphereSurface(PETSC_COMM_WORLD, origin, R, numPoints, &vertCoordsSimple, &vertWeightsSimple, &vertNormalsSimple, &vertAnglesSimple);CHKERRQ(ierr);
 
-  simplesurfdata   = makeSphereSurface(origin, R, numPoints);
-  bemSimple = makeBemEcfQualMatrices(simplesurfdata, pqr, epsIn, epsOut);
-
-  LSRF    = bemSRF.C * (bemSRF.A\bemSRF.B);
-  LSimple = bemSimple.C * (bemSimple.A\bemSimple.B);
-#endif
+  ierr = DMGetCoordinatesLocal(dm, &vertCoords);CHKERRQ(ierr);
+  ierr = makeBEMEcfQualMatrices(epsIn, epsOut, &pqr, vertCoords,       vertWeights,       vertNormals,       &LSRF);CHKERRQ(ierr);
+  ierr = makeBEMEcfQualMatrices(epsIn, epsOut, &pqr, vertCoordsSimple, vertWeightsSimple, vertNormalsSimple, &LSimple);CHKERRQ(ierr);
   ierr = doAnalytical(R, epsIn, epsOut, &pqr, ctx.Nmax, &Lref);CHKERRQ(ierr);
+
+  ierr = PetscObjectSetName((PetscObject) LSRF, "LSRF");CHKERRQ(ierr);
+  ierr = PetscObjectSetOptionsPrefix((PetscObject) LSRF, "lsrf_");CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject) LSimple, "LSimple");CHKERRQ(ierr);
+  ierr = PetscObjectSetOptionsPrefix((PetscObject) LSimple, "lsimple_");CHKERRQ(ierr);
+  ierr = MatViewFromOptions(LSRF, NULL, "-mat_view");CHKERRQ(ierr);
 
   ierr = VecDuplicate(pqr.q, &react);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) react, "Reaction Potential");CHKERRQ(ierr);
   ierr = MatMult(Lref, pqr.q, react);CHKERRQ(ierr);
   ierr = VecDot(pqr.q, react, &Eref);CHKERRQ(ierr);
   Eref    *= conv_factor * 0.5;
-#if 0
   ierr = MatMult(LSRF, pqr.q, react);CHKERRQ(ierr);
   ierr = VecDot(pqr.q, react, &ESRF);CHKERRQ(ierr);
   ESRF    *= conv_factor * 0.5;
   ierr = MatMult(LSimple, pqr.q, react);CHKERRQ(ierr);
   ierr = VecDot(pqr.q, react, &ESimple);CHKERRQ(ierr);
   ESimple *= conv_factor * 0.5;
-#endif
 
   ierr = PetscPrintf(PETSC_COMM_WORLD, "Eref = %.6f ESRF    = %.6f Error = %.6f Rel. error = %.4f\n", Eref, ESRF, Eref-ESRF, (Eref-ESRF)/Eref);
   ierr = PetscPrintf(PETSC_COMM_WORLD, "Eref = %.6f ESimple = %.6f Error = %.6f Rel. error = %.4f\n", Eref, ESimple, Eref-ESimple, (Eref-ESimple)/Eref);
 
+  ierr = VecDestroy(&vertCoordsSimple);CHKERRQ(ierr);
+  ierr = VecDestroy(&vertWeightsSimple);CHKERRQ(ierr);
+  ierr = VecDestroy(&vertNormalsSimple);CHKERRQ(ierr);
+  ierr = VecDestroy(&vertAnglesSimple);CHKERRQ(ierr);
   ierr = VecDestroy(&vertWeights);CHKERRQ(ierr);
   ierr = VecDestroy(&vertNormals);CHKERRQ(ierr);
   ierr = DMDestroy(&dm);CHKERRQ(ierr);
   ierr = MatDestroy(&Lref);CHKERRQ(ierr);
+  ierr = MatDestroy(&LSRF);CHKERRQ(ierr);
+  ierr = MatDestroy(&LSimple);CHKERRQ(ierr);
   ierr = VecDestroy(&react);CHKERRQ(ierr);
   ierr = PQRDestroy(&pqr);CHKERRQ(ierr);
   ierr = PetscFinalize();
