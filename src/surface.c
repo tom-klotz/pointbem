@@ -223,6 +223,7 @@ PetscErrorCode loadSrfIntoSurfacePoints(MPI_Comm comm, const char filename[], Ve
   PetscViewer    viewer;
   PetscScalar   *a;
   char           basename[PETSC_MAX_PATH_LEN];
+  PetscReal      totArea = 0.0;
   PetscInt       num = 1, l, cStart, cEnd, vStart, vEnd, c;
   size_t         len;
   PetscErrorCode ierr;
@@ -257,17 +258,19 @@ PetscErrorCode loadSrfIntoSurfacePoints(MPI_Comm comm, const char filename[], Ve
     PetscInt  clSize, cl, s = 0;
 
     ierr = DMPlexComputeCellGeometryFVM(*dm, c, &area, centroid, normal);CHKERRQ(ierr);
+    totArea += area;
     ierr = DMPlexGetTransitiveClosure(*dm, c, PETSC_TRUE, &clSize, &closure);CHKERRQ(ierr);
     for (cl = 0; cl < clSize*2; cl += 2) {
       const PetscInt v = closure[cl];
 
       if ((v < vStart) || (v >= vEnd)) continue;
-      a[v] += area/3.0;
+      a[v-vStart] += area/3.0;
       ++s;
     }
     ierr = DMPlexRestoreTransitiveClosure(*dm, c, PETSC_TRUE, &clSize, &closure);CHKERRQ(ierr);
     if (s != 3) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_ARG_WRONG, "Invalid connectivity in Bardhan mesh, %d vertices on face %d", s, c);
   }
+  ierr = PetscPrintf(PETSC_COMM_SELF, "Total area: %g Sphere area: %g\n", totArea, 4*PETSC_PI*PetscPowRealInt(6.0, 3)/3.0);CHKERRQ(ierr);
   ierr = VecRestoreArray(*w, &a);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
