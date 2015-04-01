@@ -223,7 +223,8 @@ PetscErrorCode loadSrfIntoSurfacePoints(MPI_Comm comm, const char filename[], Ve
   PetscViewer    viewer;
   PetscScalar   *a;
   char           basename[PETSC_MAX_PATH_LEN];
-  PetscInt       num = PETSC_MAX_PATH_LEN-1, cStart, cEnd, vStart, vEnd, c;
+  PetscInt       num = 1, l, cStart, cEnd, vStart, vEnd, c;
+  size_t         len;
   PetscErrorCode ierr;
 
   PetscFunctionBeginUser;
@@ -231,12 +232,13 @@ PetscErrorCode loadSrfIntoSurfacePoints(MPI_Comm comm, const char filename[], Ve
   ierr = PetscViewerSetType(viewer, PETSCVIEWERASCII);CHKERRQ(ierr);
   ierr = PetscViewerFileSetMode(viewer, FILE_MODE_READ);CHKERRQ(ierr);
   ierr = PetscViewerFileSetName(viewer, filename);CHKERRQ(ierr);
-  ierr = PetscViewerRead(viewer, /* dummy */basename, &num, PETSC_STRING);CHKERRQ(ierr);
-  ierr = PetscViewerRead(viewer, /* dummy */basename, &num, PETSC_STRING);CHKERRQ(ierr);
-  ierr = PetscViewerRead(viewer, /* dummy */basename, &num, PETSC_STRING);CHKERRQ(ierr);
-  ierr = PetscViewerRead(viewer, basename, &num, PETSC_STRING);CHKERRQ(ierr);
+  ierr = PetscViewerASCIIRead(viewer, /* dummy */basename, &num, PETSC_STRING);CHKERRQ(ierr);
+  ierr = PetscViewerASCIIRead(viewer, /* dummy */basename, &num, PETSC_STRING);CHKERRQ(ierr);
+  ierr = PetscStrcpy(basename, filename);CHKERRQ(ierr);
+  ierr = PetscStrlen(basename, &len);CHKERRQ(ierr);
+  for (l = len-1; basename[l] != '/' && l >= 0; --l) basename[l] = '\0';
+  ierr = PetscViewerASCIIRead(viewer, &basename[l+1], &num, PETSC_STRING);CHKERRQ(ierr);
   ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
-  PetscFunctionReturn(0);
 
   ierr = DMPlexCreateBardhanFromFile(comm, basename, PETSC_TRUE, n, dm);CHKERRQ(ierr);
   ierr = DMPlexGetHeightStratum(*dm, 0, &cStart, &cEnd);CHKERRQ(ierr);
