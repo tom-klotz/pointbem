@@ -81,7 +81,7 @@ PetscErrorCode DMPlexCreateBardhan(MPI_Comm comm, PetscViewer viewerVert, PetscV
   PetscFunctionBegin;
   ierr = MPI_Comm_rank(comm, &rank);CHKERRQ(ierr);
   if (!rank) {
-    PetscInt maxSize = 1000, cnt = 3, tot = 0;
+    PetscInt maxSize = 1000, cnt = 3, cnt2 = 2, tot = 0;
 
     ierr = PetscMalloc2(maxSize, &coords, maxSize, &normals);CHKERRQ(ierr);
     while (cnt == 3) {
@@ -93,20 +93,20 @@ PetscErrorCode DMPlexCreateBardhan(MPI_Comm comm, PetscViewer viewerVert, PetscV
         ierr = PetscMalloc2(maxSize*2, &tmpcoords, maxSize*2, &tmpnormals);CHKERRQ(ierr);
         ierr = PetscMemcpy(tmpcoords,  coords,  maxSize * sizeof(PetscReal));CHKERRQ(ierr);
         ierr = PetscMemcpy(tmpnormals, normals, maxSize * sizeof(PetscReal));CHKERRQ(ierr);
+        ierr = PetscFree2(coords, normals);CHKERRQ(ierr);
         coords  = tmpcoords;
         normals = tmpnormals;
-        ierr = PetscFree2(coords, normals);CHKERRQ(ierr);
         maxSize *= 2;
       }
-      ierr = PetscViewerRead(viewerVert, &coords[tot],  &cnt, PETSC_FLOAT);CHKERRQ(ierr);
-      ierr = PetscViewerRead(viewerVert, &normals[tot], &cnt, PETSC_FLOAT);CHKERRQ(ierr);
+      ierr = PetscViewerRead(viewerVert, &coords[tot],  &cnt, PETSC_DOUBLE);CHKERRQ(ierr);
+      ierr = PetscViewerRead(viewerVert, &normals[tot], &cnt, PETSC_DOUBLE);CHKERRQ(ierr);
       ierr = PetscViewerRead(viewerVert, dummy,         &cnt, PETSC_INT);CHKERRQ(ierr);
       tot += cnt;
+      if (cnt ==3) ++numVertices;
     }
-    numVertices = tot;
 
     cnt  = 3;
-    tot  = 3;
+    tot  = 0;
     ierr = PetscMalloc1(maxSize, &cells);CHKERRQ(ierr);
     while (cnt == 3) {
       PetscInt dummy[3];
@@ -116,15 +116,16 @@ PetscErrorCode DMPlexCreateBardhan(MPI_Comm comm, PetscViewer viewerVert, PetscV
 
         ierr = PetscMalloc1(maxSize*2, &tmpcells);CHKERRQ(ierr);
         ierr = PetscMemcpy(tmpcells, cells, maxSize * sizeof(PetscInt));CHKERRQ(ierr);
-        cells = tmpcells;
         ierr = PetscFree(cells);CHKERRQ(ierr);
+        cells = tmpcells;
         maxSize *= 2;
       }
-      ierr = PetscViewerRead(viewerFace, &cells[tot], &cnt, PETSC_INT);CHKERRQ(ierr);
-      ierr = PetscViewerRead(viewerFace, dummy,       &cnt, PETSC_INT);CHKERRQ(ierr);
+      ierr = PetscViewerRead(viewerFace, &cells[tot], &cnt,  PETSC_INT);CHKERRQ(ierr);
+      ierr = PetscViewerRead(viewerFace, dummy,       &cnt2, PETSC_INT);CHKERRQ(ierr);
       tot += cnt;
+      if (cnt == 3) ++numCells;
     }
-    numCells = tot;
+    for (c = 0; c < tot; ++c) cells[c] += numCells-1;
   }
 
   /* Allocate cell-vertex mesh */
@@ -135,6 +136,9 @@ PetscErrorCode DMPlexCreateBardhan(MPI_Comm comm, PetscViewer viewerVert, PetscV
   if (numCells < 0) SETERRQ1(PETSC_COMM_SELF, PETSC_ERR_ARG_WRONG, "Invalid number of cells %d in Bardhan file", numCells);
   for (c = 0; c < numCells; ++c) {ierr = DMPlexSetConeSize(*dm, c, numCellVertices);CHKERRQ(ierr);}
   ierr = DMSetUp(*dm);CHKERRQ(ierr);
+  for (c = 0; c < numCells; ++c) {
+    ierr = DMPlexSetCone(*dm, c, &cells[c*numCellVertices]);CHKERRQ(ierr);
+  }
   ierr = DMPlexSymmetrize(*dm);CHKERRQ(ierr);
   ierr = DMPlexStratify(*dm);CHKERRQ(ierr);
   if (interpolate) {
@@ -148,6 +152,7 @@ PetscErrorCode DMPlexCreateBardhan(MPI_Comm comm, PetscViewer viewerVert, PetscV
   /* TODO: What do Jay's vertex checks do? */
 
   /* Read coordinates */
+  ierr = DMSetCoordinateDim(*dm, dimEmbed);CHKERRQ(ierr);
   ierr = DMGetCoordinateSection(*dm, &coordSection);CHKERRQ(ierr);
   ierr = PetscSectionSetNumFields(coordSection, 1);CHKERRQ(ierr);
   ierr = PetscSectionSetFieldComponents(coordSection, 0, dimEmbed);CHKERRQ(ierr);
@@ -161,24 +166,25 @@ PetscErrorCode DMPlexCreateBardhan(MPI_Comm comm, PetscViewer viewerVert, PetscV
   ierr = VecCreate(comm, &coordinates);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) coordinates, "coordinates");CHKERRQ(ierr);
   ierr = VecSetSizes(coordinates, coordSize, PETSC_DETERMINE);CHKERRQ(ierr);
+  ierr = VecSetBlockSize(coordinates, dimEmbed);CHKERRQ(ierr);
   ierr = VecSetType(coordinates, VECSTANDARD);CHKERRQ(ierr);
   ierr = VecGetArray(coordinates, &cds);CHKERRQ(ierr);
   for (v = 0; v < numVertices; ++v) {
     for (d = 0; d < dimEmbed; ++d) {
-      cds[v*dim+d] = coords[v*dim+d];
+      cds[v*dimEmbed+d] = coords[v*dimEmbed+d];
     }
   }
   ierr = VecRestoreArray(coordinates, &cds);CHKERRQ(ierr);
   ierr = DMSetCoordinatesLocal(*dm, coordinates);CHKERRQ(ierr);
   ierr = VecDestroy(&coordinates);CHKERRQ(ierr);
   ierr = VecCreate(comm, n);CHKERRQ(ierr);
-  ierr = PetscObjectSetName((PetscObject) coordinates, "normals");CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject) *n, "normals");CHKERRQ(ierr);
   ierr = VecSetSizes(*n, coordSize, PETSC_DETERMINE);CHKERRQ(ierr);
   ierr = VecSetType(*n, VECSTANDARD);CHKERRQ(ierr);
   ierr = VecGetArray(*n, &cds);CHKERRQ(ierr);
   for (v = 0; v < numVertices; ++v) {
     for (d = 0; d < dimEmbed; ++d) {
-      cds[v*dim+d] = normals[v*dim+d];
+      cds[v*dimEmbed+d] = normals[v*dimEmbed+d];
     }
   }
   ierr = VecRestoreArray(*n, &cds);CHKERRQ(ierr);
