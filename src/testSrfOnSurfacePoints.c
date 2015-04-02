@@ -9,8 +9,20 @@ typedef struct {
 } PQRData;
 
 typedef struct {
-  PetscInt numCharges; /* Number of atomic charges in the protein */
-  PetscInt Nmax;       /* Order of the multipole expansion */
+  /* Physical parameters */
+  PetscReal epsIn;      /* solute dielectric coefficient */
+  PetscReal epsOut;     /* solvent dielectric coefficient */
+  /* Sphere setup */
+  PetscReal R;          /* Sphere radius */
+  PetscReal origin[3];  /* Sphere center */
+  PetscInt  numCharges; /* Number of atomic charges in the solute */
+  PetscReal h;          /* Charge spacing */
+  PetscInt  srfNum;     /* Resolution of mesh file */
+  char      srfFile[PETSC_MAX_PATH_LEN];
+  /* Analytical parameters */
+  PetscInt  Nmax;       /* Order of the multipole expansion */
+  /* Point BEM parameters */
+  PetscReal density;    /* Density of points on surface */
 } SolvationContext;
 
 #undef __FUNCT__
@@ -20,26 +32,41 @@ PetscErrorCode ProcessOptions(MPI_Comm comm, SolvationContext *ctx)
   PetscErrorCode ierr;
 
   PetscFunctionBeginUser;
+  ctx->epsIn      = 4;
+  ctx->epsOut     = 80;
+  ctx->R          = 6.0;
+  ctx->origin[0]  = 0.0;
+  ctx->origin[1]  = 0.0;
+  ctx->origin[2]  = 0.0;
   ctx->numCharges = 100;
+  ctx->h          = 1.0;
+  ctx->srfNum     = 1;
   ctx->Nmax       = 100;
+  ctx->density    = 1.0;
 
   ierr = PetscOptionsBegin(comm, "", "Solvation Problem Options", "BIBEE");CHKERRQ(ierr);
-    ierr = PetscOptionsInt("-num_charges", "The number of atomic charges in the protein", "testSrfOnSurfacePoints", ctx->numCharges, &ctx->numCharges, PETSC_NULL);CHKERRQ(ierr);
-    ierr = PetscOptionsInt("-nmax",        "The order of the multipole expansion", "testSrfOnSurfacePoints", ctx->Nmax, &ctx->Nmax, PETSC_NULL);CHKERRQ(ierr);
+    ierr = PetscOptionsReal("-epsilon_solute", "The dielectric coefficient of the solute", "testSrfOnSurfacePoints", ctx->epsIn, &ctx->epsIn, PETSC_NULL);CHKERRQ(ierr);
+    ierr = PetscOptionsReal("-epsilon_solvent", "The dielectric coefficient of the solvent", "testSrfOnSurfacePoints", ctx->epsOut, &ctx->epsOut, PETSC_NULL);CHKERRQ(ierr);
+    ierr = PetscOptionsInt("-num_charges", "The number of atomic charges in the solute", "testSrfOnSurfacePoints", ctx->numCharges, &ctx->numCharges, PETSC_NULL);CHKERRQ(ierr);
+    ierr = PetscOptionsInt("-srf_num", "The resolution number of the mesh", "testSrfOnSurfacePoints", ctx->srfNum, &ctx->srfNum, PETSC_NULL);CHKERRQ(ierr);
+    ierr = PetscOptionsInt("-nmax", "The order of the multipole expansion", "testSrfOnSurfacePoints", ctx->Nmax, &ctx->Nmax, PETSC_NULL);CHKERRQ(ierr);
+    ierr = PetscOptionsReal("-density", "The density of points for BEM", "testSrfOnSurfacePoints", ctx->density, &ctx->density, PETSC_NULL);CHKERRQ(ierr);
   ierr = PetscOptionsEnd();
+
+  ierr = PetscSNPrintf(ctx->srfFile, PETSC_MAX_PATH_LEN-1, "../../jay-pointbem/geometry/sphere_R6_vdens%d.srf", (int) ctx->srfNum);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "PQRView"
-PetscErrorCode PQRView(PQRData *pqr, PetscViewer viewer)
+#define __FUNCT__ "PQRViewFromOptions"
+PetscErrorCode PQRViewFromOptions(PQRData *pqr)
 {
   PetscErrorCode ierr;
 
   PetscFunctionBeginUser;
-  ierr = VecView(pqr->xyz, viewer);CHKERRQ(ierr);
-  ierr = VecView(pqr->q,   viewer);CHKERRQ(ierr);
-  ierr = VecView(pqr->R,   viewer);CHKERRQ(ierr);
+  ierr = VecViewFromOptions(pqr->xyz, "pqr_", "-vec_view");CHKERRQ(ierr);
+  ierr = VecViewFromOptions(pqr->q, "pqr_", "-vec_view");CHKERRQ(ierr);
+  ierr = VecViewFromOptions(pqr->R, "pqr_", "-vec_view");CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -526,7 +553,6 @@ PetscErrorCode doAnalytical(PetscReal b, PetscReal epsIn, PetscReal epsOut, PQRD
   for (q = 0; q < Nq; ++q) {
     Vec phi;
 
-    ierr = PetscPrintf(PETSC_COMM_SELF, "Computing charge %d\n", q);CHKERRQ(ierr);
     ierr = VecSet(tmpq, 0.0);CHKERRQ(ierr);
     ierr = VecSetValue(tmpq, q, 1.0, INSERT_VALUES);CHKERRQ(ierr);
 
@@ -582,7 +608,6 @@ PetscErrorCode makeSurfaceToChargeOperators(Vec coordinates, Vec w, Vec n, PQRDa
   if (field)       {ierr = MatCreateSeqDense(PETSC_COMM_SELF, Np, Nq, NULL, field);CHKERRQ(ierr);}
   if (singleLayer) {ierr = MatCreateSeqDense(PETSC_COMM_SELF, Nq, Np, NULL, singleLayer);CHKERRQ(ierr);}
   if (doubleLayer) {ierr = MatCreateSeqDense(PETSC_COMM_SELF, Nq, Np, NULL, doubleLayer);CHKERRQ(ierr);}
-  PetscPrintf(PETSC_COMM_SELF, "Starting\n");
   ierr = VecGetArrayRead(coordinates, &coords);CHKERRQ(ierr);
   ierr = VecGetArrayRead(pqr->xyz, &xyz);CHKERRQ(ierr);
   ierr = VecGetArrayRead(w, &weights);CHKERRQ(ierr);
@@ -746,38 +771,33 @@ int main(int argc, char **argv)
 {
   DM               dm;
   PQRData          pqr;
-  Vec              vertCoords, vertWeights, vertNormals, vertCoordsSimple, vertWeightsSimple, vertNormalsSimple, vertAnglesSimple;
+  Vec              vertCoords, vertWeights, vertNormals, vertCoordsSimple, vertWeightsSimple, vertNormalsSimple, vertAnglesSimple, react;
+  Mat              Lref, LSRF, LSimple;
+  PetscInt         Np;
   SolvationContext ctx;
-  PetscReal      q  = ELECTRON_CHARGE;
-  PetscReal      Na = 6.0221415e23;
-  PetscReal      kB = Na * BOLTZMANN_K/4.184/1000.0; /* Now in kcal/K/mol */
-  PetscReal      R           = 6.0;
-  PetscReal      epsIn       =  4;
-  PetscReal      epsOut      = 80;
-  PetscReal      conv_factor = 332.112;
-  PetscReal      origin[3]   = {0.0, 0.0, 0.0};
-  PetscReal      density     = 1.0;
-  PetscReal      h           = 1.0;
-  PetscInt       numPoints   = ceil(4.0 * PETSC_PI * R*R);
-  char           srfFile[PETSC_MAX_PATH_LEN];
-  PetscScalar    Eref, ESimple = 0.0, ESRF = 0.0;
-  Vec            react;
-  Mat            Lref, LSRF, LSimple;
-  PetscErrorCode ierr;
+  /* Constants */
+  const PetscReal  q     = ELECTRON_CHARGE;
+  const PetscReal  Na    = AVOGADRO_NUMBER;
+  const PetscReal  JperC = 4.184; /* Jouled/Calorie */
+  const PetscReal  kB    = Na * BOLTZMANN_K/4.184/1000.0; /* Now in kcal/K/mol */
+  const PetscReal  cf    = Na * (q*q/EPSILON_0)/JperC * (1e10/1000) * 1/4/PETSC_PI; /* kcal ang/mol */
+  /* Solvation Energies */
+  PetscScalar      Eref = 0.0, ESimple = 0.0, ESRF = 0.0;
+  PetscErrorCode   ierr;
 
   ierr = PetscInitialize(&argc, &argv, NULL, NULL);CHKERRQ(ierr);
   ierr = ProcessOptions(PETSC_COMM_WORLD, &ctx);CHKERRQ(ierr);
-  ierr = PetscStrcpy(srfFile, "../../jay-pointbem/geometry/sphere_R6_vdens1.srf");CHKERRQ(ierr);
-  ierr = makeSphereChargeDistribution(R, ctx.numCharges, h, PETSC_DETERMINE, &pqr);
-  ierr = PQRView(&pqr, PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
+  ierr = makeSphereChargeDistribution(ctx.R, ctx.numCharges, ctx.h, PETSC_DETERMINE, &pqr);
+  ierr = PQRViewFromOptions(&pqr);CHKERRQ(ierr);
 
-  ierr = loadSrfIntoSurfacePoints(PETSC_COMM_WORLD, srfFile, &vertNormals, &vertWeights, &dm);CHKERRQ(ierr);
-  ierr = makeSphereSurface(PETSC_COMM_WORLD, origin, R, numPoints, &vertCoordsSimple, &vertWeightsSimple, &vertNormalsSimple, &vertAnglesSimple);CHKERRQ(ierr);
+  ierr = loadSrfIntoSurfacePoints(PETSC_COMM_WORLD, ctx.srfFile, &vertNormals, &vertWeights, &dm);CHKERRQ(ierr);
+  Np   = PetscCeilReal(4.0 * PETSC_PI * PetscSqr(ctx.R))*ctx.density;
+  ierr = makeSphereSurface(PETSC_COMM_WORLD, ctx.origin, ctx.R, Np, &vertCoordsSimple, &vertWeightsSimple, &vertNormalsSimple, &vertAnglesSimple);CHKERRQ(ierr);
 
   ierr = DMGetCoordinatesLocal(dm, &vertCoords);CHKERRQ(ierr);
-  ierr = makeBEMEcfQualMatrices(epsIn, epsOut, &pqr, vertCoords,       vertWeights,       vertNormals,       &LSRF);CHKERRQ(ierr);
-  ierr = makeBEMEcfQualMatrices(epsIn, epsOut, &pqr, vertCoordsSimple, vertWeightsSimple, vertNormalsSimple, &LSimple);CHKERRQ(ierr);
-  ierr = doAnalytical(R, epsIn, epsOut, &pqr, ctx.Nmax, &Lref);CHKERRQ(ierr);
+  ierr = makeBEMEcfQualMatrices(ctx.epsIn, ctx.epsOut, &pqr, vertCoords,       vertWeights,       vertNormals,       &LSRF);CHKERRQ(ierr);
+  ierr = makeBEMEcfQualMatrices(ctx.epsIn, ctx.epsOut, &pqr, vertCoordsSimple, vertWeightsSimple, vertNormalsSimple, &LSimple);CHKERRQ(ierr);
+  ierr = doAnalytical(ctx.R, ctx.epsIn, ctx.epsOut, &pqr, ctx.Nmax, &Lref);CHKERRQ(ierr);
 
   ierr = PetscObjectSetName((PetscObject) LSRF, "LSRF");CHKERRQ(ierr);
   ierr = PetscObjectSetOptionsPrefix((PetscObject) LSRF, "lsrf_");CHKERRQ(ierr);
@@ -789,17 +809,25 @@ int main(int argc, char **argv)
   ierr = PetscObjectSetName((PetscObject) react, "Reaction Potential");CHKERRQ(ierr);
   ierr = MatMult(Lref, pqr.q, react);CHKERRQ(ierr);
   ierr = VecDot(pqr.q, react, &Eref);CHKERRQ(ierr);
-  Eref    *= conv_factor * 0.5;
+  Eref    *= cf * 0.5;
   ierr = MatMult(LSRF, pqr.q, react);CHKERRQ(ierr);
   ierr = VecDot(pqr.q, react, &ESRF);CHKERRQ(ierr);
-  ESRF    *= conv_factor * 0.5;
+  ESRF    *= cf * 0.5;
   ierr = MatMult(LSimple, pqr.q, react);CHKERRQ(ierr);
   ierr = VecDot(pqr.q, react, &ESimple);CHKERRQ(ierr);
-  ESimple *= conv_factor * 0.5;
+  ESimple *= cf * 0.5;
 
-  ierr = PetscPrintf(PETSC_COMM_WORLD, "Eref = %.6f ESRF    = %.6f Error = %.6f Rel. error = %.4f\n", Eref, ESRF, Eref-ESRF, (Eref-ESRF)/Eref);
-  ierr = PetscPrintf(PETSC_COMM_WORLD, "Eref = %.6f ESimple = %.6f Error = %.6f Rel. error = %.4f\n", Eref, ESimple, Eref-ESimple, (Eref-ESimple)/Eref);
+  {
+    PetscInt cStart, cEnd, vStart, vEnd;
 
+    ierr = DMPlexGetHeightStratum(dm, 0, &cStart, &cEnd);CHKERRQ(ierr);
+    ierr = DMPlexGetDepthStratum(dm, 0, &vStart, &vEnd);CHKERRQ(ierr);
+    ierr = PetscPrintf(PETSC_COMM_WORLD, "SRF %D vertices %D cells\n", vEnd-vStart, cEnd-cStart);CHKERRQ(ierr);
+  }
+  ierr = PetscPrintf(PETSC_COMM_WORLD, "Simple %D vertices\n", Np);CHKERRQ(ierr);
+  ierr = PetscPrintf(PETSC_COMM_WORLD, "Eref = %.6f ESRF    = %.6f Error = %.6f Rel. error = %.4f\n", Eref, ESRF, Eref-ESRF, (Eref-ESRF)/Eref);CHKERRQ(ierr);
+  ierr = PetscPrintf(PETSC_COMM_WORLD, "Eref = %.6f ESimple = %.6f Error = %.6f Rel. error = %.4f\n", Eref, ESimple, Eref-ESimple, (Eref-ESimple)/Eref);CHKERRQ(ierr);
+  /* Cleanup */
   ierr = VecDestroy(&vertCoordsSimple);CHKERRQ(ierr);
   ierr = VecDestroy(&vertWeightsSimple);CHKERRQ(ierr);
   ierr = VecDestroy(&vertNormalsSimple);CHKERRQ(ierr);
