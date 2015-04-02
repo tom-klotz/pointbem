@@ -714,6 +714,7 @@ PetscErrorCode makeBEMEcfQualMatrices(PetscReal epsIn, PetscReal epsOut, PQRData
   /* C = chargesurfop.slpToCharges */
   ierr = MatScale(C, 4.0*PETSC_PI);CHKERRQ(ierr);
   /* A = surfsurfop.K */
+  ierr = MatTranspose(A, MAT_REUSE_MATRIX, &A);CHKERRQ(ierr);
   ierr = MatDiagonalScale(A, NULL, w);CHKERRQ(ierr);
   ierr = VecDuplicate(w, &d);CHKERRQ(ierr);
   ierr = VecCopy(w, d);CHKERRQ(ierr);
