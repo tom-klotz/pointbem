@@ -1,6 +1,6 @@
 #include <petsc.h>
-#include <constants.h>
-#include <surface.h>
+#include "constants.h"
+#include "surface.h"
 
 typedef struct {
   Vec q;   /* Charge values */

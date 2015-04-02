@@ -1,6 +1,6 @@
 #include <petsc.h>
-#include <constants.h>
-#include <surface.h>
+#include "constants.h"
+#include "surface.h"
 
 #undef __FUNCT__
 #define __FUNCT__ "DMPlexCreateBardhanFromFile"
