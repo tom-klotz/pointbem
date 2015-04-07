@@ -81,9 +81,11 @@ PetscErrorCode DMPlexCreateBardhan(MPI_Comm comm, PetscViewer viewerVert, PetscV
   PetscFunctionBegin;
   ierr = MPI_Comm_rank(comm, &rank);CHKERRQ(ierr);
   if (!rank) {
-    PetscInt maxSize = 1000, cnt = 3, cnt2 = 2, tot = 0;
+    PetscInt maxSize = 1000, cnt, cnt2, tot;
 
     ierr = PetscMalloc2(maxSize, &coords, maxSize, &normals);CHKERRQ(ierr);
+    cnt  = 3;
+    tot  = 0;
     while (cnt == 3) {
       PetscInt dummy[3];
 
@@ -98,11 +100,11 @@ PetscErrorCode DMPlexCreateBardhan(MPI_Comm comm, PetscViewer viewerVert, PetscV
         normals = tmpnormals;
         maxSize *= 2;
       }
-      ierr = PetscViewerRead(viewerVert, &coords[tot],  &cnt, PETSC_DOUBLE);CHKERRQ(ierr);
-      ierr = PetscViewerRead(viewerVert, &normals[tot], &cnt, PETSC_DOUBLE);CHKERRQ(ierr);
-      ierr = PetscViewerRead(viewerVert, dummy,         &cnt, PETSC_INT);CHKERRQ(ierr);
+      ierr = PetscViewerRead(viewerVert, &coords[tot],  3, &cnt, PETSC_DOUBLE);CHKERRQ(ierr);
+      ierr = PetscViewerRead(viewerVert, &normals[tot], 3, &cnt, PETSC_DOUBLE);CHKERRQ(ierr);
+      ierr = PetscViewerRead(viewerVert, dummy,         3, &cnt, PETSC_INT);CHKERRQ(ierr);
       tot += cnt;
-      if (cnt ==3) ++numVertices;
+      if (cnt == 3) ++numVertices;
     }
 
     cnt  = 3;
@@ -120,8 +122,8 @@ PetscErrorCode DMPlexCreateBardhan(MPI_Comm comm, PetscViewer viewerVert, PetscV
         cells = tmpcells;
         maxSize *= 2;
       }
-      ierr = PetscViewerRead(viewerFace, &cells[tot], &cnt,  PETSC_INT);CHKERRQ(ierr);
-      ierr = PetscViewerRead(viewerFace, dummy,       &cnt2, PETSC_INT);CHKERRQ(ierr);
+      ierr = PetscViewerRead(viewerFace, &cells[tot], 3, &cnt,  PETSC_INT);CHKERRQ(ierr);
+      ierr = PetscViewerRead(viewerFace, dummy,       2, &cnt2, PETSC_INT);CHKERRQ(ierr);
       tot += cnt;
       if (cnt == 3) ++numCells;
     }
@@ -224,7 +226,7 @@ PetscErrorCode loadSrfIntoSurfacePoints(MPI_Comm comm, const char filename[], Ve
   PetscScalar   *a;
   char           basename[PETSC_MAX_PATH_LEN];
   PetscReal      totArea = 0.0;
-  PetscInt       num = 1, l, cStart, cEnd, vStart, vEnd, c;
+  PetscInt       l, cStart, cEnd, vStart, vEnd, c;
   size_t         len;
   PetscErrorCode ierr;
 
@@ -233,12 +235,12 @@ PetscErrorCode loadSrfIntoSurfacePoints(MPI_Comm comm, const char filename[], Ve
   ierr = PetscViewerSetType(viewer, PETSCVIEWERASCII);CHKERRQ(ierr);
   ierr = PetscViewerFileSetMode(viewer, FILE_MODE_READ);CHKERRQ(ierr);
   ierr = PetscViewerFileSetName(viewer, filename);CHKERRQ(ierr);
-  ierr = PetscViewerASCIIRead(viewer, /* dummy */basename, &num, PETSC_STRING);CHKERRQ(ierr);
-  ierr = PetscViewerASCIIRead(viewer, /* dummy */basename, &num, PETSC_STRING);CHKERRQ(ierr);
+  ierr = PetscViewerASCIIRead(viewer, /* dummy */basename, 1, NULL, PETSC_STRING);CHKERRQ(ierr);
+  ierr = PetscViewerASCIIRead(viewer, /* dummy */basename, 1, NULL, PETSC_STRING);CHKERRQ(ierr);
   ierr = PetscStrcpy(basename, filename);CHKERRQ(ierr);
   ierr = PetscStrlen(basename, &len);CHKERRQ(ierr);
   for (l = len-1; basename[l] != '/' && l >= 0; --l) basename[l] = '\0';
-  ierr = PetscViewerASCIIRead(viewer, &basename[l+1], &num, PETSC_STRING);CHKERRQ(ierr);
+  ierr = PetscViewerASCIIRead(viewer, &basename[l+1], 1, NULL, PETSC_STRING);CHKERRQ(ierr);
   ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
 
   ierr = DMPlexCreateBardhanFromFile(comm, basename, PETSC_TRUE, n, dm);CHKERRQ(ierr);
@@ -270,7 +272,7 @@ PetscErrorCode loadSrfIntoSurfacePoints(MPI_Comm comm, const char filename[], Ve
     ierr = DMPlexRestoreTransitiveClosure(*dm, c, PETSC_TRUE, &clSize, &closure);CHKERRQ(ierr);
     if (s != 3) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_ARG_WRONG, "Invalid connectivity in Bardhan mesh, %d vertices on face %d", s, c);
   }
-  ierr = PetscPrintf(PETSC_COMM_SELF, "Total area: %g Sphere area: %g\n", totArea, 4*PETSC_PI*PetscPowRealInt(6.0, 3)/3.0);CHKERRQ(ierr);
+  ierr = PetscPrintf(PETSC_COMM_SELF, "Total area: %g Sphere area: %g\n", totArea, 4*PETSC_PI*PetscPowRealInt(6.0, 2));CHKERRQ(ierr);
   ierr = VecRestoreArray(*w, &a);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
