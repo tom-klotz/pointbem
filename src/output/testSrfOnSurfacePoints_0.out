@@ -3,3 +3,4 @@ SRF 417 vertices 830 cells
 Simple 453 vertices
 Eref = -2.166903 ESRF    = -2.233687 Error = 0.066784 Rel. error = -0.0308
 Eref = -2.166903 ESimple = -2.240446 Error = 0.073543 Rel. error = -0.0339
+Eref = -2.166903 EPanel  = -2.187093 Error = 0.020190 Rel. error = -0.0093
