@@ -2,6 +2,8 @@
 #include "constants.h"
 #include "surface.h"
 
+typedef enum {BEM_POINT, BEM_PANEL} BEMType;
+
 typedef struct {
   Vec q;   /* Charge values */
   Vec xyz; /* Charge coordinates, always 3D */
@@ -574,9 +576,270 @@ PetscErrorCode doAnalytical(PetscReal b, PetscReal epsIn, PetscReal epsOut, PQRD
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "makeSurfaceToChargeOperators"
+#define __FUNCT__ "IntegratePanel"
 /*@
-  makeSurfaceToChargeOperators - Make matrices???
+  IntegratePanel - Returns potential at evaluation point due to unit monopole and unit dipole uniformly distributed on a panel.
+
+  Input Parameters:
+. panel - The vertex coordinates for this panel in the panel coordinate system
+. point - The evaluation point in the panel coordinate system
+. normal - [Optional] The evaluation direction in the panel coordinate system
+
+  Output Parameters:
+. fss - the potential at evalpnt due to a panel monopole
+. fds - the potential at evalpnt due to a panel normal dipole distribution
+. fess - the derivative of the monopole potential at evalpnt along direction
+. feds - the derivative of the dipole potential at evalpnt along direction
+
+  Note: This is called calcp() in Matlab and FFTSVD. All calculations take place in the panel coordinate system,
+  in which the face lies in the x-y plane.
+@*/
+PetscErrorCode IntegratePanel(PetscInt numCorners, const PetscReal npanel[], const PetscReal point[], const PetscReal normal[], PetscScalar *fss, PetscScalar *fds, PetscScalar *fess, PetscScalar *feds)
+{
+  PetscScalar    fs, fsx, fsy,      fes;
+  PetscScalar    fd, fdx, fdy, fdz, fed;
+  PetscReal      zn  = point[2], znabs = PetscAbsReal(zn);
+  PetscReal      elen[4]; /* the length of each edge in the panel */
+  PetscReal      ct[4];   /* cos(th) where th is the angle that panel edge i makes with the x-axis */
+  PetscReal      st[4];   /* sin(th) where th is the angle that panel edge i makes with the x-axis */
+  PetscReal      fe[4];   /* x-z plane square distance from evalpnt to each vertex */
+  PetscReal      r[4];    /* distance from evalpnt to each vertex */
+  PetscReal      xmxv[4]; /* x distance from evalpnt to each vertex */
+  PetscReal      ymyv[4]; /* y distance from evalpnt to each vertex */
+  PetscReal      xri[4];  /* cos(th) where th is the angle to panel made by vector from each vertex to evalpnt */
+  PetscReal      yri[4];  /* sin(th) where th is the angle to panel made by vector from each vertex to evalpnt */
+  PetscBool      isNormal = PETSC_FALSE; /* The evaluation point lies along the line passing through a vertex oriented along the normal */
+  PetscInt       c;
+  PetscErrorCode ierr;
+
+  PetscFunctionBeginUser;
+  for (c = 0; c < numCorners; ++c) {
+    /* Jay used a left-handed coordinate system, so iterate backwards */
+    const PetscInt curr = (numCorners - c)%numCorners;
+    const PetscInt next = (numCorners*2 - c - 1)%numCorners;
+    PetscReal      dx[3];
+    PetscInt       d;
+
+    elen[c] = 0.0;
+    for (d = 0; d < 3; ++d) elen[c] += PetscSqr(npanel[next*3+d] - npanel[curr*3+d]);
+    elen[c] = PetscSqrtReal(elen[c]);
+    /* My coordinate system seems rotated compared to Jay's */
+    ct[c] = (npanel[next*3+0] - npanel[curr*3+0])/elen[c];
+    st[c] = (npanel[next*3+1] - npanel[curr*3+1])/elen[c];
+
+    for (d = 0; d < 3; ++d) dx[d] = point[d] - npanel[curr*3+d];
+    xmxv[c] = dx[0]; 
+    ymyv[c] = dx[1]; 
+    fe[c]   = PetscSqr(dx[0]) + PetscSqr(dx[2]);
+    r[c]    = PetscSqrtReal(PetscSqr(dx[1]) + fe[c]);
+    if (r[c] < 1.005*znabs) isNormal = PETSC_TRUE;
+    if (normal) {
+      xri[c] = xmxv[c]/r[c];
+      yri[c] = ymyv[c]/r[c];
+    }
+  }
+
+  if (feds && *((PetscInt *) feds) == 0) {
+    PetscInt d;
+    for (d = 0; d < 3; ++d) {ierr = PetscPrintf(PETSC_COMM_SELF, "elen[%d] %g\n", d, elen[d]);CHKERRQ(ierr);}
+    for (d = 0; d < 3; ++d) {ierr = PetscPrintf(PETSC_COMM_SELF, "ct[%d] %g\n", d, ct[d]);CHKERRQ(ierr);}
+    for (d = 0; d < 3; ++d) {ierr = PetscPrintf(PETSC_COMM_SELF, "st[%d] %g\n", d, st[d]);CHKERRQ(ierr);}
+    for (d = 0; d < 3; ++d) {ierr = PetscPrintf(PETSC_COMM_SELF, "xmxv[%d] %g\n", d, xmxv[d]);CHKERRQ(ierr);}
+    for (d = 0; d < 3; ++d) {ierr = PetscPrintf(PETSC_COMM_SELF, "ymyv[%d] %g\n", d, ymyv[d]);CHKERRQ(ierr);}
+    for (d = 0; d < 3; ++d) {ierr = PetscPrintf(PETSC_COMM_SELF, "fe[%d] %g\n", d, fe[d]);CHKERRQ(ierr);}
+    for (d = 0; d < 3; ++d) {ierr = PetscPrintf(PETSC_COMM_SELF, "r[%d] %g\n", d, r[d]);CHKERRQ(ierr);}
+  }
+
+  /* The potential and dipole contributions are made by summing up a contribution from each edge */
+  fs = 0;
+  fd = 0;
+  if (normal) {
+    fsx = 0; fsy = 0;
+    fdx = 0; fdy = 0; fdz = 0;
+  }
+
+
+  for (c = 0; c < numCorners; ++c) {
+    const PetscInt next = (c+1)%numCorners;
+    PetscReal      v, arg;
+
+    /* v is the projection of the eval-i edge on the perpend to the side-i:  
+       Exploits the fact that corner points in panel coordinates. */
+    v = xmxv[c]*st[c] - ymyv[c]*ct[c];
+
+    /* arg == zero if eval on next-i edge, but then v = 0. */
+    arg = (r[c]+r[next] - elen[c])/(r[c]+r[next] + elen[c]);
+    if (arg > 0.0) {
+      PetscReal fln;
+
+      fln = -PetscLogReal(arg);
+      fs  = fs + v * fln;
+      if (normal) {
+        PetscReal fac;
+
+        fac = (r[c]+r[next]-elen[c]) * (r[c]+r[next]+elen[c]);
+        fac = v*(elen[c]+ elen[c])/fac;
+        fsx = fsx + (fln*st[c] - fac*(xri[c] + xri[next]));
+        fsy = fsy - (fln*ct[c] + fac*(yri[c] + yri[next]));
+        fdz = fdz - (fac*( 1.0/r[c] + 1.0/r[next]));
+      }
+    }
+    PetscReal s1, c1, s2, c2, s12, c12, val;
+
+    if (!isNormal) {
+      /* eval not near a vertex normal, use Hess-Smith */
+      s1 = v*r[c];
+      c1 = znabs*(xmxv[c]*ct[c]+ymyv[c]*st[c]);
+      s2 = v*r[next];
+      c2 = znabs*(xmxv[next]*ct[c]+ymyv[next]*st[c]);
+    } else {
+      /* eval near a vertex normal, use Newman */
+      s1 = (fe[c]*st[c])-(xmxv[c]*ymyv[c]*ct[c]);
+      c1 = znabs*r[c]*ct[c];
+      s2 = (fe[next]*st[c])-(xmxv[next]*ymyv[next]*ct[c]);
+      c2 = znabs*r[next]*ct[c];
+    }
+  
+    s12 = (s1*c2)-(s2*c1);
+    c12 = (c1*c2)+(s1*s2);
+    val = atan2(s12, c12);
+    fd  = fd+val;
+    if (normal) {
+      PetscReal fac, u1, u2, rr, fh1, fh2;
+
+      u1 = xmxv[c]*ct[c] + ymyv[c]*st[c];
+      u2 = xmxv[next]*ct[c]+ymyv[next]*st[c];
+      if (isNormal) {
+        rr  = r[c]*r[c];
+        fh1 = xmxv[c]*ymyv[c];
+        fh2 = xmxv[next]*ymyv[next];
+        fac = c1/((c1*c1+s1*s1)*rr );
+        if (zn < 0.0) fac = -fac;
+        fdx = fdx + ((rr*v+fh1*u1)*fac);
+        fdy = fdy - (fe[c]*u1*fac);
+        rr  = r[next]*r[next];
+        fac = c2/((c2*c2+s2*s2)*rr);
+        if (zn < 0.0) fac = -fac;
+        fdx = fdx - ((rr*v+fh2*u2)*fac);
+        fdy = fdy + fe[next]*u2*fac;
+      } else {
+        fac = zn/(c1*c1+s1*s1);
+        fdx = fdx + (u1*v*xri[c]+r[c]*ymyv[c])*fac;
+        fdy = fdy + (u1*v*yri[c]-r[c]*xmxv[c])*fac;
+        fac = zn/(c2*c2+s2*s2);
+        fdx = fdx - ((u2*v*xri[next]+r[next]*ymyv[next])*fac);
+        fdy = fdy - ((u2*v*yri[next]-r[next]*xmxv[next])*fac);
+      }
+    }
+  }
+
+  /* I do not understand this line, and it is screwing up */
+  // if (fd < 0.0) fd = fd + 2*PETSC_PI;
+  if (fd < -1.0e-7) fd = fd + 2*PETSC_PI;
+  if (zn < 0.0) fd = -fd;
+ 
+  fs = fs - zn*fd;
+
+  if (normal) {
+    fsx = fsx - zn*fdx;
+    fsy = fsy - zn*fdy;
+    fes = normal[0]*fsx + normal[1]*fsy - normal[2]*fd;
+    fed = normal[0]*fdx + normal[1]*fdy + normal[2]*fdz;
+  }
+
+  /* No area normalization */
+  *fss = fs;
+  *fds = fd;
+  if (normal) *fess = fes;
+  if (normal) *feds = fed;
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "makeSurfaceToSurfacePanelOperators_Laplace"
+/*@
+  makeSurfaceToSurfacePanelOperators_Laplace - Make A matrix mapping the surface to itself
+
+  Input Parameters:
++ coordinates - The vertex coordinates
+. w - The vertex weights
+- n - The vertex normals
+
+  Output Parameters:
++ V - The single layer operator
+- K - The double layer operator
+
+  Level: beginner
+
+.seealso: doAnalytical()
+@*/
+PetscErrorCode makeSurfaceToSurfacePanelOperators_Laplace(DM dm, Vec w, Vec n, Mat *V, Mat *K)
+{
+
+  Vec            coordinates;
+  PetscSection   coordSection;
+  PetscInt       Np;
+  PetscInt       i, j, d;
+  PetscErrorCode ierr;
+
+  PetscFunctionBeginUser;
+  ierr = DMGetCoordinateSection(dm, &coordSection);CHKERRQ(ierr);
+  ierr = DMGetCoordinatesLocal(dm, &coordinates);CHKERRQ(ierr);
+  ierr = DMPlexGetHeightStratum(dm, 0, NULL, &Np);CHKERRQ(ierr);
+  if (V) {ierr = MatCreateSeqDense(PETSC_COMM_SELF, Np, Np, NULL, V);CHKERRQ(ierr);}
+  if (K) {ierr = MatCreateSeqDense(PETSC_COMM_SELF, Np, Np, NULL, K);CHKERRQ(ierr);}
+  for (i = 0; i < Np; ++i) {
+    PetscScalar *coords = NULL;
+    PetscReal    panel[12], R[9], v0[3];
+    PetscInt     numCorners, coordSize, d, e;
+
+    ierr = DMPlexGetConeSize(dm, i, &numCorners);CHKERRQ(ierr);
+    ierr = DMPlexVecGetClosure(dm, coordSection, coordinates, i, &coordSize, &coords);CHKERRQ(ierr);
+    for (d = 0; d < 3; ++d) v0[d] = coords[d];
+    ierr = DMPlexComputeProjection3Dto2D_Internal(coordSize, coords, R);CHKERRQ(ierr);
+    for (d = 0; d < numCorners; ++d) {
+      panel[d*3+0] = PetscRealPart(coords[d*2+0]);
+      panel[d*3+1] = PetscRealPart(coords[d*2+1]);
+      panel[d*3+2] = 0.0;
+    }
+    ierr = DMPlexVecRestoreClosure(dm, coordSection, coordinates, i, &coordSize, &coords);CHKERRQ(ierr);
+    for (j = 0; j < Np; ++j) {
+      PetscScalar *tcoords = NULL;
+      PetscReal    centroid[3], cloc[3];
+      PetscScalar  fss, fds;
+
+      ierr = DMPlexVecGetClosure(dm, coordSection, coordinates, j, NULL, &tcoords);CHKERRQ(ierr);
+      for (d = 0; d < 3; ++d) {
+        centroid[d] = 0.0;
+        for (e = 0; e < numCorners; ++e) centroid[d] += tcoords[e*3+d];
+        centroid[d] /= numCorners;
+      }
+      /* Rotate centroid into panel coordinate system */
+      for (d = 0; d < 3; ++d) {
+        cloc[d] = 0.0;
+        for (e = 0; e < 3; ++e) {
+          cloc[d] += R[e*3+d] * (centroid[e] - v0[e]);
+        }
+      }
+      ierr = DMPlexVecRestoreClosure(dm, coordSection, coordinates, j, NULL, &tcoords);CHKERRQ(ierr);
+      /* 'panel' is the coordinates of the panel vertices in the panel coordinate system */
+      /*  TODO pass normals if we want fess for Kp */
+      ierr = IntegratePanel(numCorners, panel, cloc, NULL, &fss, &fds, NULL, NULL);CHKERRQ(ierr);
+
+      if (V) {ierr = MatSetValue(*V, j, i, fss/4/PETSC_PI, INSERT_VALUES);CHKERRQ(ierr);}
+      if (K) {ierr = MatSetValue(*K, j, i, fds/4/PETSC_PI, INSERT_VALUES);CHKERRQ(ierr);}
+      //if (Kp) {ierr = MatSetValue(*singleLayer, j, i, fess/4/PETSC_PI, INSERT_VALUES);CHKERRQ(ierr);}
+    }
+  }
+  if (V) {ierr = MatAssemblyBegin(*V, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);ierr = MatAssemblyEnd(*V, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);}
+  if (K) {ierr = MatAssemblyBegin(*K, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);ierr = MatAssemblyEnd(*K, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);}
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "makeSurfaceToChargePanelOperators"
+/*@
+  makeSurfaceToChargePanelOperators - Make B and C matrices mapping point charges to the surface points
 
   Input Parameters:
 + coordinates - The vertex coordinates
@@ -594,7 +857,102 @@ PetscErrorCode doAnalytical(PetscReal b, PetscReal epsIn, PetscReal epsOut, PQRD
 
 .seealso: doAnalytical()
 @*/
-PetscErrorCode makeSurfaceToChargeOperators(Vec coordinates, Vec w, Vec n, PQRData *pqr, Mat *potential, Mat *field, Mat *singleLayer, Mat *doubleLayer)
+PetscErrorCode makeSurfaceToChargePanelOperators(DM dm, Vec w, Vec n, PQRData *pqr, Mat *potential, Mat *field, Mat *singleLayer, Mat *doubleLayer)
+{
+
+  Vec                coordinates;
+  PetscSection       coordSection;
+  const PetscScalar *xyz;
+  PetscInt           Nq, Np;
+  PetscInt           i, j, d;
+  PetscErrorCode     ierr;
+
+  PetscFunctionBeginUser;
+  ierr = DMGetCoordinateSection(dm, &coordSection);CHKERRQ(ierr);
+  ierr = DMGetCoordinatesLocal(dm, &coordinates);CHKERRQ(ierr);
+  ierr = VecGetLocalSize(pqr->q, &Nq);CHKERRQ(ierr);
+  ierr = DMPlexGetHeightStratum(dm, 0, NULL, &Np);CHKERRQ(ierr);
+  if (potential || field) SETERRQ(PetscObjectComm((PetscObject) dm), PETSC_ERR_SUP, "Do not currently make the potential or field operators");
+  if (potential)   {ierr = MatCreateSeqDense(PETSC_COMM_SELF, Np, Nq, NULL, potential);CHKERRQ(ierr);}
+  if (field)       {ierr = MatCreateSeqDense(PETSC_COMM_SELF, Np, Nq, NULL, field);CHKERRQ(ierr);}
+  if (singleLayer) {ierr = MatCreateSeqDense(PETSC_COMM_SELF, Nq, Np, NULL, singleLayer);CHKERRQ(ierr);}
+  if (doubleLayer) {ierr = MatCreateSeqDense(PETSC_COMM_SELF, Nq, Np, NULL, doubleLayer);CHKERRQ(ierr);}
+  ierr = VecGetArrayRead(pqr->xyz, &xyz);CHKERRQ(ierr);
+  for (i = 0; i < Np; ++i) {
+    PetscScalar *coords = NULL;
+    PetscReal    panel[12], R[9], v0[3];
+    PetscInt     numCorners, coordSize, d, e;
+
+    ierr = DMPlexGetConeSize(dm, i, &numCorners);CHKERRQ(ierr);
+    ierr = DMPlexVecGetClosure(dm, coordSection, coordinates, i, &coordSize, &coords);CHKERRQ(ierr);
+    for (d = 0; d < 3; ++d) v0[d] = coords[d];
+    ierr = DMPlexComputeProjection3Dto2D_Internal(coordSize, coords, R);CHKERRQ(ierr);
+    for (d = 0; d < numCorners; ++d) {
+      panel[d*3+0] = PetscRealPart(coords[d*2+0]);
+      panel[d*3+1] = PetscRealPart(coords[d*2+1]);
+      panel[d*3+2] = 0.0;
+    }
+    ierr = DMPlexVecRestoreClosure(dm, coordSection, coordinates, i, &coordSize, &coords);CHKERRQ(ierr);
+    for (j = 0; j < Nq; ++j) {
+      PetscReal   qloc[3];
+      PetscScalar fss, fds;
+
+      /* Rotate charge location into panel coordinate system */
+      for (d = 0; d < 3; ++d) {
+        qloc[d] = 0.0;
+        for (e = 0; e < 3; ++e) {
+          qloc[d] += R[e*3+d] * (xyz[j*3+e] - v0[e]);
+        }
+      }
+      /* 'panel' is the coordinates of the panel vertices in the panel coordinate system */
+      ierr = IntegratePanel(numCorners, panel, qloc, NULL, &fss, &fds, NULL, NULL);CHKERRQ(ierr);
+
+#if 0
+      if (!i) {
+        for (d = 0; d < numCorners; ++d) {
+          ierr = PetscPrintf(PETSC_COMM_SELF, "v%d (%g, %g, %g)\n", d, panel[d*3+0], panel[d*3+1], panel[d*3+2]);CHKERRQ(ierr);
+        }
+        ierr = PetscPrintf(PETSC_COMM_SELF, "q (%g, %g, %g)\n", d, qloc[0], qloc[1], qloc[2]);CHKERRQ(ierr);
+        ierr = PetscPrintf(PETSC_COMM_SELF, "fss %g fds %g\n", fss, fds);CHKERRQ(ierr);
+      }
+#endif
+
+      if (potential)   {ierr = MatSetValue(*potential,   i, j, 0.0,            INSERT_VALUES);CHKERRQ(ierr);}
+      if (field)       {ierr = MatSetValue(*field,       i, j, 0.0,            INSERT_VALUES);CHKERRQ(ierr);}
+      if (singleLayer) {ierr = MatSetValue(*singleLayer, j, i, fss/4/PETSC_PI, INSERT_VALUES);CHKERRQ(ierr);}
+      if (doubleLayer) {ierr = MatSetValue(*doubleLayer, j, i, fds/4/PETSC_PI, INSERT_VALUES);CHKERRQ(ierr);}
+    }
+  }
+  ierr = VecRestoreArrayRead(pqr->xyz, &xyz);CHKERRQ(ierr);
+  if (potential)   {ierr = MatAssemblyBegin(*potential,   MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);ierr = MatAssemblyEnd(*potential,   MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);}
+  if (field)       {ierr = MatAssemblyBegin(*field,       MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);ierr = MatAssemblyEnd(*field,       MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);}
+  if (singleLayer) {ierr = MatAssemblyBegin(*singleLayer, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);ierr = MatAssemblyEnd(*singleLayer, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);}
+  if (doubleLayer) {ierr = MatAssemblyBegin(*doubleLayer, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);ierr = MatAssemblyEnd(*doubleLayer, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);}
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "makeSurfaceToChargePointOperators"
+/*@
+  makeSurfaceToChargePointOperators - Make B and C matrices mapping point charges to the surface points
+
+  Input Parameters:
++ coordinates - The vertex coordinates
+. w - The vertex weights
+. n - The vertex normals
+- pqrData - the PQRData context
+
+  Output Parameters:
++ potential - 
+. field - 
+. singleLayer -
+- doubleLayer - 
+
+  Level: beginner
+
+.seealso: doAnalytical()
+@*/
+PetscErrorCode makeSurfaceToChargePointOperators(Vec coordinates, Vec w, Vec n, PQRData *pqr, Mat *potential, Mat *field, Mat *singleLayer, Mat *doubleLayer)
 {
   const PetscScalar *coords, *xyz, *weights, *normals;
   PetscInt           Nq, Np;
@@ -642,9 +1000,9 @@ PetscErrorCode makeSurfaceToChargeOperators(Vec coordinates, Vec w, Vec n, PQRDa
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "makeSurfaceToSurfaceLaplaceOperators"
+#define __FUNCT__ "makeSurfaceToSurfacePointOperators_Laplace"
 /*@
-  makeSurfaceToSurfaceLaplaceOperators - Make matrices???
+  makeSurfaceToSurfacePointOperators_Laplace - Make V and K matrices mapping the surface to itself
 
   Input Parameters:
 + epsIn - the dielectric constant inside the protein
@@ -662,7 +1020,7 @@ PetscErrorCode makeSurfaceToChargeOperators(Vec coordinates, Vec w, Vec n, PQRDa
 
 .seealso: doAnalytical()
 @*/
-PetscErrorCode makeSurfaceToSurfaceLaplaceOperators(Vec coordinates, Vec w, Vec n, Mat *V, Mat *K)
+PetscErrorCode makeSurfaceToSurfacePointOperators_Laplace(Vec coordinates, Vec w, Vec n, Mat *V, Mat *K)
 {
   const PetscScalar *coords, *weights, *normals;
   PetscInt           Np, i, j, d;
@@ -702,7 +1060,7 @@ PetscErrorCode makeSurfaceToSurfaceLaplaceOperators(Vec coordinates, Vec w, Vec 
 #undef __FUNCT__
 #define __FUNCT__ "makeBEMEcfQualMatrices"
 /*@
-  makeBEMEcfQualMatrices - Make matrices???
+  makeBEMEcfQualMatrices - Make solvation matrix, L = C A^{-1} B
 
   Input Parameters:
 + epsIn - the dielectric constant inside the protein
@@ -719,23 +1077,36 @@ PetscErrorCode makeSurfaceToSurfaceLaplaceOperators(Vec coordinates, Vec w, Vec 
 
 .seealso: doAnalytical()
 @*/
-PetscErrorCode makeBEMEcfQualMatrices(PetscReal epsIn, PetscReal epsOut, PQRData *pqr, Vec coordinates, Vec w, Vec n, Mat *L)
+PetscErrorCode makeBEMEcfQualMatrices(DM dm, BEMType bem, PetscReal epsIn, PetscReal epsOut, PQRData *pqr, Vec coordinates, Vec w, Vec n, Mat *L)
 {
   const PetscReal epsHat = (epsIn + epsOut)/(epsIn - epsOut);
   KSP             ksp;
   PC              pc;
-  Mat             A, B, C, S, fact;
+  Mat             A, Bp, B, C, S, fact;
   Vec             d;
   PetscErrorCode  ierr;
 
   PetscFunctionBeginUser;
-  ierr = makeSurfaceToSurfaceLaplaceOperators(coordinates, w, n, NULL, &A);CHKERRQ(ierr);
-  ierr = makeSurfaceToChargeOperators(coordinates, w, n, pqr, NULL, &B, &C, NULL);CHKERRQ(ierr);
-
-  /* B = chargesurfop.dphidnCoul */
-  ierr = MatDiagonalScale(B, w, NULL);CHKERRQ(ierr);
-  ierr = MatScale(B, -1/epsIn);CHKERRQ(ierr);
-
+  switch (bem) {
+  case BEM_POINT:
+    ierr = makeSurfaceToSurfacePointOperators_Laplace(coordinates, w, n, NULL, &A);CHKERRQ(ierr);
+    ierr = makeSurfaceToChargePointOperators(coordinates, w, n, pqr, NULL, &B, &C, NULL);CHKERRQ(ierr);
+    /* B = chargesurfop.dphidnCoul */
+    ierr = MatDiagonalScale(B, w, NULL);CHKERRQ(ierr);
+    ierr = MatScale(B, -1/epsIn);CHKERRQ(ierr);
+    break;
+  case BEM_PANEL:
+    ierr = makeSurfaceToSurfacePanelOperators_Laplace(dm, w, n, NULL, &A);CHKERRQ(ierr);
+    //MatView(A, 0);
+    ierr = makeSurfaceToChargePanelOperators(dm, w, n, pqr, NULL, NULL, &C, &Bp);CHKERRQ(ierr);
+    /* Bp = chargesurfop.dlpToCharges */
+    ierr = MatTranspose(Bp, MAT_INITIAL_MATRIX, &B);CHKERRQ(ierr);
+    ierr = MatDestroy(&Bp);CHKERRQ(ierr);
+    ierr = MatScale(B, -1/epsIn);CHKERRQ(ierr);
+    break;
+  default:
+    SETERRQ1(PETSC_COMM_SELF, PETSC_ERR_ARG_WRONG, "Invalid BEM type: %d", bem);
+  }
   /* C = chargesurfop.slpToCharges */
   ierr = MatScale(C, 4.0*PETSC_PI);CHKERRQ(ierr);
   /* A = surfsurfop.K */
@@ -771,8 +1142,8 @@ int main(int argc, char **argv)
 {
   DM               dm;
   PQRData          pqr;
-  Mat              Lref, LSRF, LSimple;
   Vec              panelAreas, vertCoords, vertWeights, vertNormals, vertCoordsSimple, vertWeightsSimple, vertNormalsSimple, vertAnglesSimple, react;
+  Mat              Lref, LSRF, LSimple, LPanel;
   PetscInt         Np;
   SolvationContext ctx;
   /* Constants */
@@ -782,7 +1153,7 @@ int main(int argc, char **argv)
   const PetscReal  kB    = Na * BOLTZMANN_K/4.184/1000.0; /* Now in kcal/K/mol */
   const PetscReal  cf    = Na * (q*q/EPSILON_0)/JperC * (1e10/1000) * 1/4/PETSC_PI; /* kcal ang/mol */
   /* Solvation Energies */
-  PetscScalar      Eref = 0.0, ESimple = 0.0, ESRF = 0.0;
+  PetscScalar      Eref = 0.0, ESimple = 0.0, ESRF = 0.0, EPanel = 0.0;
   PetscErrorCode   ierr;
 
   ierr = PetscInitialize(&argc, &argv, NULL, NULL);CHKERRQ(ierr);
@@ -795,15 +1166,21 @@ int main(int argc, char **argv)
   ierr = makeSphereSurface(PETSC_COMM_WORLD, ctx.origin, ctx.R, Np, &vertCoordsSimple, &vertWeightsSimple, &vertNormalsSimple, &vertAnglesSimple);CHKERRQ(ierr);
 
   ierr = DMGetCoordinatesLocal(dm, &vertCoords);CHKERRQ(ierr);
-  ierr = makeBEMEcfQualMatrices(ctx.epsIn, ctx.epsOut, &pqr, vertCoords,       vertWeights,       vertNormals,       &LSRF);CHKERRQ(ierr);
-  ierr = makeBEMEcfQualMatrices(ctx.epsIn, ctx.epsOut, &pqr, vertCoordsSimple, vertWeightsSimple, vertNormalsSimple, &LSimple);CHKERRQ(ierr);
+  ierr = makeBEMEcfQualMatrices(dm, BEM_POINT, ctx.epsIn, ctx.epsOut, &pqr, vertCoords,       vertWeights,       vertNormals,       &LSRF);CHKERRQ(ierr);
+  ierr = makeBEMEcfQualMatrices(dm, BEM_POINT, ctx.epsIn, ctx.epsOut, &pqr, vertCoordsSimple, vertWeightsSimple, vertNormalsSimple, &LSimple);CHKERRQ(ierr);
   ierr = doAnalytical(ctx.R, ctx.epsIn, ctx.epsOut, &pqr, ctx.Nmax, &Lref);CHKERRQ(ierr);
+
+  ierr = makeBEMEcfQualMatrices(dm, BEM_PANEL, ctx.epsIn, ctx.epsOut, &pqr, NULL,             panelAreas,        vertNormals,       &LPanel);CHKERRQ(ierr);
 
   ierr = PetscObjectSetName((PetscObject) LSRF, "LSRF");CHKERRQ(ierr);
   ierr = PetscObjectSetOptionsPrefix((PetscObject) LSRF, "lsrf_");CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) LSimple, "LSimple");CHKERRQ(ierr);
   ierr = PetscObjectSetOptionsPrefix((PetscObject) LSimple, "lsimple_");CHKERRQ(ierr);
-  ierr = MatViewFromOptions(LSRF, NULL, "-mat_view");CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject) LPanel, "LPanel");CHKERRQ(ierr);
+  ierr = PetscObjectSetOptionsPrefix((PetscObject) LPanel, "lpanel_");CHKERRQ(ierr);
+  ierr = MatViewFromOptions(LSRF,    NULL, "-mat_view");CHKERRQ(ierr);
+  ierr = MatViewFromOptions(LSimple, NULL, "-mat_view");CHKERRQ(ierr);
+  ierr = MatViewFromOptions(LPanel,  NULL, "-mat_view");CHKERRQ(ierr);
 
   ierr = VecDuplicate(pqr.q, &react);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) react, "Reaction Potential");CHKERRQ(ierr);
@@ -816,6 +1193,9 @@ int main(int argc, char **argv)
   ierr = MatMult(LSimple, pqr.q, react);CHKERRQ(ierr);
   ierr = VecDot(pqr.q, react, &ESimple);CHKERRQ(ierr);
   ESimple *= cf * 0.5;
+  ierr = MatMult(LPanel, pqr.q, react);CHKERRQ(ierr);
+  ierr = VecDot(pqr.q, react, &EPanel);CHKERRQ(ierr);
+  EPanel  *= cf * 0.5;
 
   {
     PetscInt cStart, cEnd, vStart, vEnd;
@@ -825,8 +1205,9 @@ int main(int argc, char **argv)
     ierr = PetscPrintf(PETSC_COMM_WORLD, "SRF %D vertices %D cells\n", vEnd-vStart, cEnd-cStart);CHKERRQ(ierr);
   }
   ierr = PetscPrintf(PETSC_COMM_WORLD, "Simple %D vertices\n", Np);CHKERRQ(ierr);
-  ierr = PetscPrintf(PETSC_COMM_WORLD, "Eref = %.6f ESRF    = %.6f Error = %.6f Rel. error = %.4f\n", Eref, ESRF, Eref-ESRF, (Eref-ESRF)/Eref);CHKERRQ(ierr);
+  ierr = PetscPrintf(PETSC_COMM_WORLD, "Eref = %.6f ESRF    = %.6f Error = %.6f Rel. error = %.4f\n", Eref, ESRF,    Eref-ESRF,    (Eref-ESRF)/Eref);CHKERRQ(ierr);
   ierr = PetscPrintf(PETSC_COMM_WORLD, "Eref = %.6f ESimple = %.6f Error = %.6f Rel. error = %.4f\n", Eref, ESimple, Eref-ESimple, (Eref-ESimple)/Eref);CHKERRQ(ierr);
+  ierr = PetscPrintf(PETSC_COMM_WORLD, "Eref = %.6f EPanel  = %.6f Error = %.6f Rel. error = %.4f\n", Eref, EPanel,  Eref-EPanel,  (Eref-EPanel)/Eref);CHKERRQ(ierr);
   /* Cleanup */
   ierr = VecDestroy(&vertCoordsSimple);CHKERRQ(ierr);
   ierr = VecDestroy(&vertWeightsSimple);CHKERRQ(ierr);
@@ -839,6 +1220,7 @@ int main(int argc, char **argv)
   ierr = MatDestroy(&Lref);CHKERRQ(ierr);
   ierr = MatDestroy(&LSRF);CHKERRQ(ierr);
   ierr = MatDestroy(&LSimple);CHKERRQ(ierr);
+  ierr = MatDestroy(&LPanel);CHKERRQ(ierr);
   ierr = VecDestroy(&react);CHKERRQ(ierr);
   ierr = PQRDestroy(&pqr);CHKERRQ(ierr);
   ierr = PetscFinalize();
