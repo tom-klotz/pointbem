@@ -207,9 +207,10 @@ PetscErrorCode DMPlexCreateBardhan(MPI_Comm comm, PetscViewer viewerVert, PetscV
 - filename - The filename of the .srf file
 
   Output Parameters:
-+ n  - The vertex normals
-. w  - The vertex weights
-- dm - The DM Plex object
++ n    - The vertex normals
+. w    - The vertex weights
+. area - The panel areas
+- dm   - The DM Plex object
 
   Level: developer
 
@@ -220,10 +221,10 @@ $   quiver3(v(:,1), v(:,2), v(:,3), n(:,1), n(:,2), n(:,3));
 
 .seealso: DMPlexCreateBardhanFromFile(), DMPlexCreateBardhan()
 @*/
-PetscErrorCode loadSrfIntoSurfacePoints(MPI_Comm comm, const char filename[], Vec *n, Vec *w, DM *dm)
+PetscErrorCode loadSrfIntoSurfacePoints(MPI_Comm comm, const char filename[], Vec *n, Vec *w, Vec *area, DM *dm)
 {
   PetscViewer    viewer;
-  PetscScalar   *a;
+  PetscScalar   *a, *weight;
   char           basename[PETSC_MAX_PATH_LEN];
   PetscReal      totArea = 0.0;
   PetscInt       l, cStart, cEnd, vStart, vEnd, c;
@@ -248,32 +249,41 @@ PetscErrorCode loadSrfIntoSurfacePoints(MPI_Comm comm, const char filename[], Ve
   ierr = DMPlexGetDepthStratum(*dm, 0, &vStart, &vEnd);CHKERRQ(ierr);
   /* TODO Jay has a pass where he eliminates vertices of low weight, or which are too close to another vertex */
 
+  ierr = VecCreate(comm, area);CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject) *area, "panel areas");CHKERRQ(ierr);
+  ierr = VecSetSizes(*area, cEnd-cStart, PETSC_DETERMINE);CHKERRQ(ierr);
+  ierr = VecSetType(*area, VECSTANDARD);CHKERRQ(ierr);
+
   ierr = VecCreate(comm, w);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) *w, "vertex weights");CHKERRQ(ierr);
   ierr = VecSetSizes(*w, vEnd-vStart, PETSC_DETERMINE);CHKERRQ(ierr);
   ierr = VecSetType(*w, VECSTANDARD);CHKERRQ(ierr);
   ierr = VecSet(*w, 0.0);CHKERRQ(ierr);
-  ierr = VecGetArray(*w, &a);CHKERRQ(ierr);
+
+  ierr = VecGetArray(*w, &weight);CHKERRQ(ierr);
+  ierr = VecGetArray(*area, &a);CHKERRQ(ierr);
   for (c = cStart; c < cEnd; ++c) {
     PetscReal area, centroid[3], normal[3];
     PetscInt *closure = NULL;
     PetscInt  clSize, cl, s = 0;
 
     ierr = DMPlexComputeCellGeometryFVM(*dm, c, &area, centroid, normal);CHKERRQ(ierr);
+    a[c-cStart] = area;
     totArea += area;
     ierr = DMPlexGetTransitiveClosure(*dm, c, PETSC_TRUE, &clSize, &closure);CHKERRQ(ierr);
     for (cl = 0; cl < clSize*2; cl += 2) {
       const PetscInt v = closure[cl];
 
       if ((v < vStart) || (v >= vEnd)) continue;
-      a[v-vStart] += area/3.0;
+      weight[v-vStart] += area/3.0;
       ++s;
     }
     ierr = DMPlexRestoreTransitiveClosure(*dm, c, PETSC_TRUE, &clSize, &closure);CHKERRQ(ierr);
     if (s != 3) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_ARG_WRONG, "Invalid connectivity in Bardhan mesh, %d vertices on face %d", s, c);
   }
   ierr = PetscPrintf(PETSC_COMM_SELF, "Total area: %g Sphere area: %g\n", totArea, 4*PETSC_PI*PetscPowRealInt(6.0, 2));CHKERRQ(ierr);
-  ierr = VecRestoreArray(*w, &a);CHKERRQ(ierr);
+  ierr = VecRestoreArray(*w, &weight);CHKERRQ(ierr);
+  ierr = VecRestoreArray(*area, &a);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 

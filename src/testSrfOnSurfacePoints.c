@@ -771,8 +771,8 @@ int main(int argc, char **argv)
 {
   DM               dm;
   PQRData          pqr;
-  Vec              vertCoords, vertWeights, vertNormals, vertCoordsSimple, vertWeightsSimple, vertNormalsSimple, vertAnglesSimple, react;
   Mat              Lref, LSRF, LSimple;
+  Vec              panelAreas, vertCoords, vertWeights, vertNormals, vertCoordsSimple, vertWeightsSimple, vertNormalsSimple, vertAnglesSimple, react;
   PetscInt         Np;
   SolvationContext ctx;
   /* Constants */
@@ -790,7 +790,7 @@ int main(int argc, char **argv)
   ierr = makeSphereChargeDistribution(ctx.R, ctx.numCharges, ctx.h, PETSC_DETERMINE, &pqr);
   ierr = PQRViewFromOptions(&pqr);CHKERRQ(ierr);
 
-  ierr = loadSrfIntoSurfacePoints(PETSC_COMM_WORLD, ctx.srfFile, &vertNormals, &vertWeights, &dm);CHKERRQ(ierr);
+  ierr = loadSrfIntoSurfacePoints(PETSC_COMM_WORLD, ctx.srfFile, &vertNormals, &vertWeights, &panelAreas, &dm);CHKERRQ(ierr);
   Np   = PetscCeilReal(4.0 * PETSC_PI * PetscSqr(ctx.R))*ctx.density;
   ierr = makeSphereSurface(PETSC_COMM_WORLD, ctx.origin, ctx.R, Np, &vertCoordsSimple, &vertWeightsSimple, &vertNormalsSimple, &vertAnglesSimple);CHKERRQ(ierr);
 
@@ -834,6 +834,7 @@ int main(int argc, char **argv)
   ierr = VecDestroy(&vertAnglesSimple);CHKERRQ(ierr);
   ierr = VecDestroy(&vertWeights);CHKERRQ(ierr);
   ierr = VecDestroy(&vertNormals);CHKERRQ(ierr);
+  ierr = VecDestroy(&panelAreas);CHKERRQ(ierr);
   ierr = DMDestroy(&dm);CHKERRQ(ierr);
   ierr = MatDestroy(&Lref);CHKERRQ(ierr);
   ierr = MatDestroy(&LSRF);CHKERRQ(ierr);
