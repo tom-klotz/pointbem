@@ -210,6 +210,7 @@ PetscErrorCode DMPlexCreateBardhan(MPI_Comm comm, PetscViewer viewerVert, PetscV
 + n    - The vertex normals
 . w    - The vertex weights
 . area - The panel areas
+. totalArea - The total surface area
 - dm   - The DM Plex object
 
   Level: developer
@@ -221,7 +222,7 @@ $   quiver3(v(:,1), v(:,2), v(:,3), n(:,1), n(:,2), n(:,3));
 
 .seealso: DMPlexCreateBardhanFromFile(), DMPlexCreateBardhan()
 @*/
-PetscErrorCode loadSrfIntoSurfacePoints(MPI_Comm comm, const char filename[], Vec *n, Vec *w, Vec *area, DM *dm)
+PetscErrorCode loadSrfIntoSurfacePoints(MPI_Comm comm, const char filename[], Vec *n, Vec *w, Vec *area, PetscReal *totalArea, DM *dm)
 {
   PetscViewer    viewer;
   PetscScalar   *a, *weight;
@@ -281,9 +282,9 @@ PetscErrorCode loadSrfIntoSurfacePoints(MPI_Comm comm, const char filename[], Ve
     ierr = DMPlexRestoreTransitiveClosure(*dm, c, PETSC_TRUE, &clSize, &closure);CHKERRQ(ierr);
     if (s != 3) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_ARG_WRONG, "Invalid connectivity in Bardhan mesh, %d vertices on face %d", s, c);
   }
-  ierr = PetscPrintf(PETSC_COMM_SELF, "Total area: %g Sphere area: %g\n", totArea, 4*PETSC_PI*PetscPowRealInt(6.0, 2));CHKERRQ(ierr);
   ierr = VecRestoreArray(*w, &weight);CHKERRQ(ierr);
   ierr = VecRestoreArray(*area, &a);CHKERRQ(ierr);
+  if (totalArea) *totalArea = totArea;
   PetscFunctionReturn(0);
 }
 
