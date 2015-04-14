@@ -1,4 +1,5 @@
 #include <petsc.h>
+#include <petsc/private/petscimpl.h>
 #include "constants.h"
 #include "surface.h"
 
@@ -1143,13 +1144,103 @@ PetscErrorCode makeBEMEcfQualMatrices(DM dm, BEMType bem, PetscReal epsIn, Petsc
 }
 
 #undef __FUNCT__
+#define __FUNCT__ "CalculateAnalyticSolvationEnergy"
+/*@
+  CalculateAnalyticSolvationEnergy - Calculate the solvation energy 1/2 q^T L q
+
+  Input Parameters:
++ epsIn - the dielectric constant inside the protein
+. epsOut - the dielectric constant outside the protein
+. pqrData - the PQRData context
+. R - The sphere radius
+- Nmax - The multipole order
+
+  Output Parameters:
++ react - The reaction potential, L q
+- E - The solvation energy
+
+  Level: beginner
+
+.seealso: doAnalytical()
+@*/
+PetscErrorCode CalculateAnalyticSolvationEnergy(PetscReal epsIn, PetscReal epsOut, PQRData *pqr, PetscReal R, PetscInt Nmax, Vec react, PetscReal *E)
+{
+  const PetscReal q     = ELECTRON_CHARGE;
+  const PetscReal Na    = AVOGADRO_NUMBER;
+  const PetscReal JperC = 4.184; /* Jouled/Calorie */
+  const PetscReal cf    = Na * (q*q/EPSILON_0)/JperC * (1e10/1000) * 1/4/PETSC_PI; /* kcal ang/mol */
+  Mat             L;
+  PetscErrorCode  ierr;
+
+  PetscFunctionBeginUser;
+  PetscValidPointer(pqr, 3);
+  PetscValidPointer(E, 6);
+  ierr = doAnalytical(R, epsIn, epsOut, pqr, Nmax, &L);CHKERRQ(ierr);
+  ierr = MatMult(L, pqr->q, react);CHKERRQ(ierr);
+  ierr = MatDestroy(&L);CHKERRQ(ierr);
+  ierr = VecDot(pqr->q, react, E);CHKERRQ(ierr);
+  *E  *= cf * 0.5;
+  PetscFunctionReturn(0);
+}
+
+
+#undef __FUNCT__
+#define __FUNCT__ "CalculateBEMSolvationEnergy"
+/*@
+  CalculateBEMSolvationEnergy - Calculate the solvation energy 1/2 q^T L q
+
+  Input Parameters:
++ dm - The DM
+. prefix - A prefix to use for the objects created
+. bem - The type BEM method
+. epsIn - the dielectric constant inside the protein
+. epsOut - the dielectric constant outside the protein
+. pqrData - the PQRData context
+. w - The weights
+- n - The normals
+
+  Output Parameters:
++ react - The reaction potential, L q
+- E - The solvation energy
+
+  Level: beginner
+
+.seealso: doAnalytical()
+@*/
+PetscErrorCode CalculateBEMSolvationEnergy(DM dm, const char prefix[], BEMType bem, PetscReal epsIn, PetscReal epsOut, PQRData *pqr, Vec w, Vec n, Vec react, PetscReal *E)
+{
+  const PetscReal q     = ELECTRON_CHARGE;
+  const PetscReal Na    = AVOGADRO_NUMBER;
+  const PetscReal JperC = 4.184; /* Jouled/Calorie */
+  const PetscReal cf    = Na * (q*q/EPSILON_0)/JperC * (1e10/1000) * 1/4/PETSC_PI; /* kcal ang/mol */
+  Mat             L;
+  Vec             coords;
+  PetscErrorCode  ierr;
+
+  PetscFunctionBeginUser;
+  PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
+  PetscValidPointer(pqr, 6);
+  PetscValidPointer(E, 10);
+  ierr = DMGetCoordinatesLocal(dm, &coords);CHKERRQ(ierr);
+  ierr = makeBEMEcfQualMatrices(dm, bem, epsIn, epsOut, pqr, coords, w, n, &L);CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject) L, "L");CHKERRQ(ierr);
+  ierr = PetscObjectSetOptionsPrefix((PetscObject) L, prefix);CHKERRQ(ierr);
+  ierr = MatViewFromOptions(L, NULL, "-mat_view");CHKERRQ(ierr);
+
+  ierr = MatMult(L, pqr->q, react);CHKERRQ(ierr);
+  ierr = MatDestroy(&L);CHKERRQ(ierr);
+  ierr = VecDot(pqr->q, react, E);CHKERRQ(ierr);
+  *E  *= cf * 0.5;
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
 #define __FUNCT__ "main"
 int main(int argc, char **argv)
 {
-  DM               dm;
+  DM               dm, dmSimple;
   PQRData          pqr;
-  Vec              panelAreas, vertCoords, vertWeights, vertNormals, vertCoordsSimple, vertWeightsSimple, vertNormalsSimple, vertAnglesSimple, react;
-  Mat              Lref, LSRF, LSimple, LPanel;
+  Vec              panelAreas, vertWeights, vertNormals, vertWeightsSimple, vertNormalsSimple, react;
   PetscReal        totalArea;
   PetscInt         Np;
   SolvationContext ctx;
@@ -1170,7 +1261,9 @@ int main(int argc, char **argv)
     ierr = makeSphereChargeDistribution(ctx.R, ctx.numCharges, ctx.h, PETSC_DETERMINE, &pqr);
     ierr = PQRViewFromOptions(&pqr);CHKERRQ(ierr);
   }
-  /* Make surfaces */
+  ierr = VecDuplicate(pqr.q, &react);CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject) react, "Reaction Potential");CHKERRQ(ierr);
+  /* Make surface */
   ierr = loadSrfIntoSurfacePoints(PETSC_COMM_WORLD, ctx.srfFile, &vertNormals, &vertWeights, &panelAreas, &totalArea, &dm);CHKERRQ(ierr);
   {
     PetscInt cStart, cEnd, vStart, vEnd;
@@ -1179,61 +1272,35 @@ int main(int argc, char **argv)
     ierr = DMPlexGetDepthStratum(dm, 0, &vStart, &vEnd);CHKERRQ(ierr);
     ierr = PetscPrintf(PETSC_COMM_WORLD, "SRF %D vertices %D cells\n", vEnd-vStart, cEnd-cStart);CHKERRQ(ierr);
   }
+  /* Calculate solvation energy */
+  ierr = CalculateBEMSolvationEnergy(dm, "lsrf_", BEM_POINT, ctx.epsIn, ctx.epsOut, &pqr, vertWeights, vertNormals, react, &ESRF);CHKERRQ(ierr);
+  ierr = CalculateBEMSolvationEnergy(dm, "lpanel_", BEM_PANEL, ctx.epsIn, ctx.epsOut, &pqr, panelAreas, vertNormals, react, &EPanel);CHKERRQ(ierr);
+  /* Verification */
   if (ctx.isSphere) {
-    Np   = PetscCeilReal(4.0 * PETSC_PI * PetscSqr(ctx.R))*ctx.density;
+    const PetscInt Np = PetscCeilReal(4.0 * PETSC_PI * PetscSqr(ctx.R))*ctx.density;
+    DM             dmSimple;
+    Vec            vertWeightsSimple, vertNormalsSimple;
+
     ierr = PetscPrintf(PETSC_COMM_WORLD, "Total area: %g Sphere area: %g\n", totalArea, 4*PETSC_PI*PetscPowRealInt(ctx.R, 2));CHKERRQ(ierr);
     ierr = PetscPrintf(PETSC_COMM_WORLD, "Simple %D vertices\n", Np);CHKERRQ(ierr);
-    ierr = makeSphereSurface(PETSC_COMM_WORLD, ctx.origin, ctx.R, Np, &vertCoordsSimple, &vertWeightsSimple, &vertNormalsSimple, &vertAnglesSimple);CHKERRQ(ierr);
+    ierr = makeSphereSurface(PETSC_COMM_WORLD, ctx.origin, ctx.R, Np, &vertWeightsSimple, &vertNormalsSimple, NULL, &dmSimple);CHKERRQ(ierr);
+
+    ierr = CalculateBEMSolvationEnergy(dmSimple, "lsimple_", BEM_POINT, ctx.epsIn, ctx.epsOut, &pqr, vertWeightsSimple, vertNormalsSimple, react, &ESimple);CHKERRQ(ierr);
+    ierr = CalculateAnalyticSolvationEnergy(ctx.epsIn, ctx.epsOut, &pqr, ctx.R, ctx.Nmax, react, &Eref);CHKERRQ(ierr);
+    ierr = PetscPrintf(PETSC_COMM_WORLD, "Eref = %.6f ESRF    = %.6f Error = %.6f Rel. error = %.4f\n", Eref, ESRF,    Eref-ESRF,    (Eref-ESRF)/Eref);CHKERRQ(ierr);
+    ierr = PetscPrintf(PETSC_COMM_WORLD, "Eref = %.6f ESimple = %.6f Error = %.6f Rel. error = %.4f\n", Eref, ESimple, Eref-ESimple, (Eref-ESimple)/Eref);CHKERRQ(ierr);
+    ierr = PetscPrintf(PETSC_COMM_WORLD, "Eref = %.6f EPanel  = %.6f Error = %.6f Rel. error = %.4f\n", Eref, EPanel,  Eref-EPanel,  (Eref-EPanel)/Eref);CHKERRQ(ierr);
+
+    ierr = VecDestroy(&vertWeightsSimple);CHKERRQ(ierr);
+    ierr = VecDestroy(&vertNormalsSimple);CHKERRQ(ierr);
+    ierr = DMDestroy(&dmSimple);CHKERRQ(ierr);
   }
-  /* Make BEM matrices */
-  ierr = DMGetCoordinatesLocal(dm, &vertCoords);CHKERRQ(ierr);
-  ierr = makeBEMEcfQualMatrices(dm, BEM_POINT, ctx.epsIn, ctx.epsOut, &pqr, vertCoords,       vertWeights,       vertNormals,       &LSRF);CHKERRQ(ierr);
-  ierr = PetscObjectSetName((PetscObject) LSRF, "LSRF");CHKERRQ(ierr);
-  ierr = PetscObjectSetOptionsPrefix((PetscObject) LSRF, "lsrf_");CHKERRQ(ierr);
-  ierr = MatViewFromOptions(LSRF,    NULL, "-mat_view");CHKERRQ(ierr);
-  ierr = makeBEMEcfQualMatrices(dm, BEM_POINT, ctx.epsIn, ctx.epsOut, &pqr, vertCoordsSimple, vertWeightsSimple, vertNormalsSimple, &LSimple);CHKERRQ(ierr);
-  ierr = PetscObjectSetName((PetscObject) LSimple, "LSimple");CHKERRQ(ierr);
-  ierr = PetscObjectSetOptionsPrefix((PetscObject) LSimple, "lsimple_");CHKERRQ(ierr);
-  ierr = MatViewFromOptions(LSimple, NULL, "-mat_view");CHKERRQ(ierr);
-  ierr = makeBEMEcfQualMatrices(dm, BEM_PANEL, ctx.epsIn, ctx.epsOut, &pqr, NULL,             panelAreas,        vertNormals,       &LPanel);CHKERRQ(ierr);
-  ierr = PetscObjectSetName((PetscObject) LPanel, "LPanel");CHKERRQ(ierr);
-  ierr = PetscObjectSetOptionsPrefix((PetscObject) LPanel, "lpanel_");CHKERRQ(ierr);
-  ierr = MatViewFromOptions(LPanel,  NULL, "-mat_view");CHKERRQ(ierr);
-  if (ctx.isSphere) {
-    ierr = doAnalytical(ctx.R, ctx.epsIn, ctx.epsOut, &pqr, ctx.Nmax, &Lref);CHKERRQ(ierr);
-  }
-  /* Calculate solvation energy */
-  ierr = VecDuplicate(pqr.q, &react);CHKERRQ(ierr);
-  ierr = PetscObjectSetName((PetscObject) react, "Reaction Potential");CHKERRQ(ierr);
-  ierr = MatMult(Lref, pqr.q, react);CHKERRQ(ierr);
-  ierr = VecDot(pqr.q, react, &Eref);CHKERRQ(ierr);
-  Eref    *= cf * 0.5;
-  ierr = MatMult(LSRF, pqr.q, react);CHKERRQ(ierr);
-  ierr = VecDot(pqr.q, react, &ESRF);CHKERRQ(ierr);
-  ESRF    *= cf * 0.5;
-  ierr = MatMult(LSimple, pqr.q, react);CHKERRQ(ierr);
-  ierr = VecDot(pqr.q, react, &ESimple);CHKERRQ(ierr);
-  ESimple *= cf * 0.5;
-  ierr = MatMult(LPanel, pqr.q, react);CHKERRQ(ierr);
-  ierr = VecDot(pqr.q, react, &EPanel);CHKERRQ(ierr);
-  EPanel  *= cf * 0.5;
-  ierr = PetscPrintf(PETSC_COMM_WORLD, "Eref = %.6f ESRF    = %.6f Error = %.6f Rel. error = %.4f\n", Eref, ESRF,    Eref-ESRF,    (Eref-ESRF)/Eref);CHKERRQ(ierr);
-  ierr = PetscPrintf(PETSC_COMM_WORLD, "Eref = %.6f ESimple = %.6f Error = %.6f Rel. error = %.4f\n", Eref, ESimple, Eref-ESimple, (Eref-ESimple)/Eref);CHKERRQ(ierr);
-  ierr = PetscPrintf(PETSC_COMM_WORLD, "Eref = %.6f EPanel  = %.6f Error = %.6f Rel. error = %.4f\n", Eref, EPanel,  Eref-EPanel,  (Eref-EPanel)/Eref);CHKERRQ(ierr);
   /* Cleanup */
-  ierr = VecDestroy(&vertCoordsSimple);CHKERRQ(ierr);
-  ierr = VecDestroy(&vertWeightsSimple);CHKERRQ(ierr);
-  ierr = VecDestroy(&vertNormalsSimple);CHKERRQ(ierr);
-  ierr = VecDestroy(&vertAnglesSimple);CHKERRQ(ierr);
   ierr = VecDestroy(&vertWeights);CHKERRQ(ierr);
   ierr = VecDestroy(&vertNormals);CHKERRQ(ierr);
   ierr = VecDestroy(&panelAreas);CHKERRQ(ierr);
-  ierr = DMDestroy(&dm);CHKERRQ(ierr);
-  ierr = MatDestroy(&Lref);CHKERRQ(ierr);
-  ierr = MatDestroy(&LSRF);CHKERRQ(ierr);
-  ierr = MatDestroy(&LSimple);CHKERRQ(ierr);
-  ierr = MatDestroy(&LPanel);CHKERRQ(ierr);
   ierr = VecDestroy(&react);CHKERRQ(ierr);
+  ierr = DMDestroy(&dm);CHKERRQ(ierr);
   ierr = PQRDestroy(&pqr);CHKERRQ(ierr);
   ierr = PetscFinalize();
   return 0;
