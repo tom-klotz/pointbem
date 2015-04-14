@@ -300,10 +300,10 @@ PetscErrorCode loadSrfIntoSurfacePoints(MPI_Comm comm, const char filename[], Ve
 - numpoints - The number of points to use
 
   Output Parameters:
-+ coordinates - The vertex coordinates
-. n  - The vertex normals
-. w  - The vertex weights
-- solidangle - The angular coordinates (theta, phi)
++ w  - The vertex weights
+- n  - The vertex normals
+. solidangle - The angular coordinates (theta, phi)
+- dm - The DM
 
   Level: developer
 
@@ -311,33 +311,34 @@ PetscErrorCode loadSrfIntoSurfacePoints(MPI_Comm comm, const char filename[], Ve
 
 .seealso: DMPlexCreateBardhanFromFile(), DMPlexCreateBardhan()
 @*/
-PetscErrorCode makeSphereSurface(MPI_Comm comm, PetscReal origin[], PetscReal radius, PetscInt numPoints, Vec *coordinates, Vec *w, Vec *n, Vec *solidangle)
+PetscErrorCode makeSphereSurface(MPI_Comm comm, PetscReal origin[], PetscReal radius, PetscInt numPoints, Vec *w, Vec *n, Vec *solidangle, DM *dm)
 {
   const PetscReal h = 2.0/numPoints;
   PetscReal       t = -1.0 + 0.5*h;
+  Vec             coordinates, angle;
   PetscScalar    *coords, *ang, *normals, *weights;
   PetscInt        i, d;
   PetscErrorCode  ierr;
 
   PetscFunctionBeginUser;
-  ierr = VecCreate(comm, coordinates);CHKERRQ(ierr);
-  ierr = PetscObjectSetName((PetscObject) *coordinates, "coordinates");CHKERRQ(ierr);
-  ierr = VecSetSizes(*coordinates, numPoints*3, PETSC_DETERMINE);CHKERRQ(ierr);
-  ierr = VecSetBlockSize(*coordinates, 3);CHKERRQ(ierr);
-  ierr = VecSetType(*coordinates, VECSTANDARD);CHKERRQ(ierr);
-  ierr = VecDuplicate(*coordinates, n);CHKERRQ(ierr);
-  ierr = VecCreate(comm, solidangle);CHKERRQ(ierr);
-  ierr = PetscObjectSetName((PetscObject) *solidangle, "solid angle");CHKERRQ(ierr);
-  ierr = VecSetSizes(*solidangle, numPoints*2, PETSC_DETERMINE);CHKERRQ(ierr);
-  ierr = VecSetBlockSize(*solidangle, 2);CHKERRQ(ierr);
-  ierr = VecSetType(*solidangle, VECSTANDARD);CHKERRQ(ierr);
+  ierr = VecCreate(comm, &coordinates);CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject) coordinates, "coordinates");CHKERRQ(ierr);
+  ierr = VecSetSizes(coordinates, numPoints*3, PETSC_DETERMINE);CHKERRQ(ierr);
+  ierr = VecSetBlockSize(coordinates, 3);CHKERRQ(ierr);
+  ierr = VecSetType(coordinates, VECSTANDARD);CHKERRQ(ierr);
+  ierr = VecDuplicate(coordinates, n);CHKERRQ(ierr);
+  ierr = VecCreate(comm, &angle);CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject) angle, "solid angle");CHKERRQ(ierr);
+  ierr = VecSetSizes(angle, numPoints*2, PETSC_DETERMINE);CHKERRQ(ierr);
+  ierr = VecSetBlockSize(angle, 2);CHKERRQ(ierr);
+  ierr = VecSetType(angle, VECSTANDARD);CHKERRQ(ierr);
   ierr = VecCreate(comm, w);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) *w, "vertex weights");CHKERRQ(ierr);
   ierr = VecSetSizes(*w, numPoints, PETSC_DETERMINE);CHKERRQ(ierr);
   ierr = VecSetType(*w, VECSTANDARD);CHKERRQ(ierr);
-  ierr = VecGetArray(*coordinates, &coords);CHKERRQ(ierr);
+  ierr = VecGetArray(coordinates, &coords);CHKERRQ(ierr);
   ierr = VecGetArray(*n, &normals);CHKERRQ(ierr);
-  ierr = VecGetArray(*solidangle, &ang);CHKERRQ(ierr);
+  ierr = VecGetArray(angle, &ang);CHKERRQ(ierr);
   ierr = VecGetArray(*w, &weights);CHKERRQ(ierr);
   for (i = 0; i < numPoints; ++i, t += h) {
     const PetscReal theta = PetscAcosReal(t);
@@ -351,9 +352,14 @@ PetscErrorCode makeSphereSurface(MPI_Comm comm, PetscReal origin[], PetscReal ra
     normals[i*3+2] = PetscCosReal(theta);
     for (d = 0; d < 3; ++d) coords[i*3+d] = radius * normals[i*3+d] + origin[d];
   }
-  ierr = VecRestoreArray(*coordinates, &coords);CHKERRQ(ierr);
+  ierr = VecRestoreArray(coordinates, &coords);CHKERRQ(ierr);
   ierr = VecRestoreArray(*n, &normals);CHKERRQ(ierr);
-  ierr = VecRestoreArray(*solidangle, &ang);CHKERRQ(ierr);
+  ierr = VecRestoreArray(angle, &ang);CHKERRQ(ierr);
   ierr = VecRestoreArray(*w, &weights);CHKERRQ(ierr);
+  ierr = DMCreate(comm, dm);CHKERRQ(ierr);
+  ierr = DMSetType(*dm, DMSHELL);CHKERRQ(ierr);
+  ierr = DMSetCoordinatesLocal(*dm, coordinates);CHKERRQ(ierr);
+  ierr = VecDestroy(&coordinates);CHKERRQ(ierr);
+  if (solidangle) *solidangle = angle;
   PetscFunctionReturn(0);
 }
