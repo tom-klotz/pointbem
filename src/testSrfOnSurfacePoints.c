@@ -15,7 +15,9 @@ typedef struct {
   /* Physical parameters */
   PetscReal epsIn;      /* solute dielectric coefficient */
   PetscReal epsOut;     /* solvent dielectric coefficient */
-  /* SRF file */
+  char      pdbFile[PETSC_MAX_PATH_LEN]; /* Chemists are crazy and have never heard of normalized data */
+  char      crgFile[PETSC_MAX_PATH_LEN];
+  /* Surface file */
   PetscInt  srfNum;     /* Resolution of mesh file */
   char      basename[PETSC_MAX_PATH_LEN];
   char      srfFile[PETSC_MAX_PATH_LEN];
@@ -55,6 +57,9 @@ PetscErrorCode ProcessOptions(MPI_Comm comm, SolvationContext *ctx)
   ierr = PetscOptionsBegin(comm, "", "Solvation Problem Options", "BIBEE");CHKERRQ(ierr);
     ierr = PetscOptionsReal("-epsilon_solute", "The dielectric coefficient of the solute", "testSrfOnSurfacePoints", ctx->epsIn, &ctx->epsIn, NULL);CHKERRQ(ierr);
     ierr = PetscOptionsReal("-epsilon_solvent", "The dielectric coefficient of the solvent", "testSrfOnSurfacePoints", ctx->epsOut, &ctx->epsOut, NULL);CHKERRQ(ierr);
+    ierr = PetscOptionsString("-pdb_filename", "The filename for the .pdb file", "testSrfOnSurfacePoints", ctx->pdbFile, ctx->pdbFile, sizeof(ctx->pdbFile), NULL);CHKERRQ(ierr);
+    ierr = PetscOptionsString("-crg_filename", "The filename for the .crg file", "testSrfOnSurfacePoints", ctx->crgFile, ctx->crgFile, sizeof(ctx->crgFile), NULL);CHKERRQ(ierr);
+    ierr = PetscOptionsBool("-is_sphere", "Use a spherical test case", "testSrfOnSurfacePoints", ctx->isSphere, &ctx->isSphere, NULL);CHKERRQ(ierr);
     ierr = PetscOptionsInt("-num_charges", "The number of atomic charges in the solute", "testSrfOnSurfacePoints", ctx->numCharges, &ctx->numCharges, NULL);CHKERRQ(ierr);
     ierr = PetscOptionsString("-srf_base", "The basename for the .srf file", "testSrfOnSurfacePoints", ctx->basename, ctx->basename, sizeof(ctx->basename), NULL);CHKERRQ(ierr);
     ierr = PetscOptionsInt("-srf_num", "The resolution number of the mesh", "testSrfOnSurfacePoints", ctx->srfNum, &ctx->srfNum, NULL);CHKERRQ(ierr);
@@ -63,6 +68,126 @@ PetscErrorCode ProcessOptions(MPI_Comm comm, SolvationContext *ctx)
   ierr = PetscOptionsEnd();
 
   ierr = PetscSNPrintf(ctx->srfFile, PETSC_MAX_PATH_LEN-1, "%s%d.srf", ctx->basename, (int) ctx->srfNum);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "PQRCreateFromPDB"
+PetscErrorCode PQRCreateFromPDB(MPI_Comm comm, const char pdbFile[], const char crgFile[], PQRData *pqr)
+{
+  PetscViewer    viewerPDB, viewerCRG;
+  PetscScalar   *q, *x;
+  PetscReal     *charges, *coords;
+  PetscInt       n = 0, i, d;
+  PetscMPIInt    rank;
+  PetscErrorCode ierr;
+
+  PetscFunctionBeginUser;
+  ierr = MPI_Comm_rank(comm, &rank);CHKERRQ(ierr);
+  ierr = PetscViewerCreate(comm, &viewerPDB);CHKERRQ(ierr);
+  ierr = PetscViewerSetType(viewerPDB, PETSCVIEWERASCII);CHKERRQ(ierr);
+  ierr = PetscViewerFileSetMode(viewerPDB, FILE_MODE_READ);CHKERRQ(ierr);
+  ierr = PetscViewerFileSetName(viewerPDB, pdbFile);CHKERRQ(ierr);
+  if (!rank) {
+    char     buf[128];
+    PetscInt line = 0, maxSize = 1024, cnt = 1;
+
+    ierr = PetscMalloc2(maxSize, &charges, maxSize*3, &coords);CHKERRQ(ierr);
+    while (cnt) {
+      PetscInt c = 0;
+
+      /* Read line */
+      do {ierr = PetscViewerRead(viewerPDB, &buf[c++], 1, &cnt, PETSC_CHAR);CHKERRQ(ierr);}
+      while (buf[c-1] != '\n' && buf[c-1] != '\0' && cnt);
+      /* Parse line */
+      if (c > 6 &&
+          ((buf[0] == 'A' && buf[1] == 'T' && buf[2] == 'O' && buf[3] == 'M') ||
+           (buf[0] == 'H' && buf[1] == 'E' && buf[2] == 'T' && buf[3] == 'A' && buf[4] == 'T' && buf[5] == 'M'))) {
+        double tmp;
+
+        if (n >= maxSize) {
+          /* Reallocate and copy */
+        }
+        buf[66] = '\0';
+        ierr = sscanf(&buf[60], "%lg", &tmp); if (ierr != 1) SETERRQ2(comm, PETSC_ERR_ARG_WRONG, "Could not read charge for line %d of PDB file %s", line, pdbFile);
+        charges[n] = tmp;
+        buf[54] = '\0';
+        ierr = sscanf(&buf[46], "%lg", &tmp); if (ierr != 1) SETERRQ2(comm, PETSC_ERR_ARG_WRONG, "Could not read z coordinate for line %d of PDB file %s", line, pdbFile);
+        coords[n*3+2] = tmp;
+        buf[46] = '\0';
+        ierr = sscanf(&buf[38], "%lg", &tmp); if (ierr != 1) SETERRQ2(comm, PETSC_ERR_ARG_WRONG, "Could not read y coordinate for line %d of PDB file %s", line, pdbFile);
+        coords[n*3+1] = tmp;
+        buf[38] = '\0';
+        ierr = sscanf(&buf[31], "%lg", &tmp); if (ierr != 1) SETERRQ2(comm, PETSC_ERR_ARG_WRONG, "Could not read x coordinate for line %d of PDB file %s", line, pdbFile);
+        coords[n*3+0] = tmp;
+        /* Residue id [23-27] */
+        /* Segment id [21-22] */
+        /* Residue name [17-20] */
+        /* Atom name [12-15] */
+        ++n;
+      }
+      ++line;
+    }
+  }
+  ierr = PetscViewerDestroy(&viewerPDB);CHKERRQ(ierr);
+
+  ierr = VecCreate(comm, &pqr->q);CHKERRQ(ierr);
+  ierr = VecSetSizes(pqr->q, n, PETSC_DETERMINE);CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject) pqr->q, "Atomic Charges");CHKERRQ(ierr);
+  ierr = VecSetFromOptions(pqr->q);CHKERRQ(ierr);
+  ierr = VecCreate(comm, &pqr->xyz);CHKERRQ(ierr);
+  ierr = VecSetSizes(pqr->xyz, n*3, PETSC_DETERMINE);CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject) pqr->xyz, "Atomic XYZ");CHKERRQ(ierr);
+  ierr = VecSetBlockSize(pqr->xyz, 3);CHKERRQ(ierr);
+  ierr = VecSetFromOptions(pqr->xyz);CHKERRQ(ierr);
+
+  ierr = VecGetArray(pqr->q, &q);CHKERRQ(ierr);
+  ierr = VecGetArray(pqr->xyz, &x);CHKERRQ(ierr);
+  for (i = 0; i < n; ++i) {
+    q[i] = charges[i];
+    for (d = 0; d < 3; ++d) x[i*3+d] = coords[i*3+d];
+  }
+  ierr = VecRestoreArray(pqr->q, &q);CHKERRQ(ierr);
+  ierr = VecRestoreArray(pqr->xyz, &x);CHKERRQ(ierr);
+  ierr = PetscFree2(charges, coords);CHKERRQ(ierr);
+
+  if (crgFile) {
+    ierr = PetscViewerCreate(comm, &viewerCRG);CHKERRQ(ierr);
+    ierr = PetscViewerSetType(viewerCRG, PETSCVIEWERASCII);CHKERRQ(ierr);
+    ierr = PetscViewerFileSetMode(viewerCRG, FILE_MODE_READ);CHKERRQ(ierr);
+    ierr = PetscViewerFileSetName(viewerCRG, crgFile);CHKERRQ(ierr);
+    if (!rank) {
+      char     buf[128];
+      PetscInt cnt = 1;
+
+      /* The CRG file is required to have the same nubmer of atoms in the same order as the PDB */
+      ierr = VecGetArray(pqr->q, &q);CHKERRQ(ierr);
+      for (i = -1; i < n; ++i) {
+        PetscReal charge;
+        double    tmp;
+        PetscInt  c = 0;
+
+        /* Read line */
+        do {ierr = PetscViewerRead(viewerCRG, &buf[c++], 1, &cnt, PETSC_CHAR);CHKERRQ(ierr);}
+        while (buf[c-1] != '\n' && buf[c-1] != '\0' && cnt);
+        if (!cnt) break;
+        if (i < 0) continue;
+        buf[22] = '\0';
+        ierr = sscanf(&buf[14], "%lg", &tmp); if (ierr != 1) SETERRQ2(comm, PETSC_ERR_ARG_WRONG, "Could not read charge for line %d of CRG file %", i+1, crgFile);
+        q[i] = tmp;
+        /* Segment id [13] */
+        /* Residue number [9-12] */
+        /* Residue name [6-8] */
+        /* Atom name [0-5] */
+      }
+      ierr = VecRestoreArray(pqr->q, &q);CHKERRQ(ierr);
+    }
+    ierr = PetscViewerDestroy(&viewerCRG);CHKERRQ(ierr);
+  }
+
+  ierr = VecDuplicate(pqr->q, &pqr->R);CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject) pqr->R, "Atomic radii");CHKERRQ(ierr);
+  ierr = VecSet(pqr->R, 0.0);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -1261,6 +1386,8 @@ int main(int argc, char **argv)
   if (ctx.isSphere) {
     ierr = makeSphereChargeDistribution(ctx.R, ctx.numCharges, ctx.h, PETSC_DETERMINE, &pqr);CHKERRQ(ierr);
     ierr = PQRViewFromOptions(&pqr);CHKERRQ(ierr);
+  } else {
+    ierr = PQRCreateFromPDB(PETSC_COMM_WORLD, ctx.pdbFile, ctx.crgFile, &pqr);CHKERRQ(ierr);
   }
   ierr = VecDuplicate(pqr.q, &react);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) react, "Reaction Potential");CHKERRQ(ierr);
@@ -1295,6 +1422,10 @@ int main(int argc, char **argv)
     ierr = VecDestroy(&vertWeightsSimple);CHKERRQ(ierr);
     ierr = VecDestroy(&vertNormalsSimple);CHKERRQ(ierr);
     ierr = DMDestroy(&dmSimple);CHKERRQ(ierr);
+  } else {
+    Eref = 1.0; /* TODO This should be higher resolution BEM */
+    ierr = PetscPrintf(PETSC_COMM_WORLD, "Eref = %.6f ESurf  = %.6f Error = %.6f Rel. error = %.4f\n", Eref, ESurf,  Eref-ESurf,  (Eref-ESurf)/Eref);CHKERRQ(ierr);
+    ierr = PetscPrintf(PETSC_COMM_WORLD, "Eref = %.6f EPanel = %.6f Error = %.6f Rel. error = %.4f\n", Eref, EPanel, Eref-EPanel, (Eref-EPanel)/Eref);CHKERRQ(ierr);
   }
   /* Cleanup */
   ierr = VecDestroy(&vertWeights);CHKERRQ(ierr);
