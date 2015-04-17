@@ -21,6 +21,7 @@ typedef struct {
   PetscInt  srfNum;     /* Resolution of mesh file */
   char      basename[PETSC_MAX_PATH_LEN];
   char      srfFile[PETSC_MAX_PATH_LEN];
+  char      pntFile[PETSC_MAX_PATH_LEN];
   /* Point BEM parameters */
   PetscReal density;    /* Density of points on surface */
   /* Sphere setup */
@@ -68,6 +69,7 @@ PetscErrorCode ProcessOptions(MPI_Comm comm, SolvationContext *ctx)
   ierr = PetscOptionsEnd();
 
   ierr = PetscSNPrintf(ctx->srfFile, PETSC_MAX_PATH_LEN-1, "%s%d.srf", ctx->basename, (int) ctx->srfNum);CHKERRQ(ierr);
+  ierr = PetscSNPrintf(ctx->pntFile, PETSC_MAX_PATH_LEN-1, "%s%d.pnt", ctx->basename, (int) ctx->srfNum);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -1228,9 +1230,8 @@ PetscErrorCode makeBEMEcfQualMatrices(DM dm, BEMType bem, PetscReal epsIn, Petsc
     ierr = MatScale(B, -1/epsIn);CHKERRQ(ierr);
     break;
   case BEM_PANEL:
-    ierr = makeSurfaceToSurfacePanelOperators_Laplace(dm, w, n, NULL, &A);CHKERRQ(ierr);
-    //MatView(A, 0);
-    ierr = makeSurfaceToChargePanelOperators(dm, w, n, pqr, NULL, NULL, &C, &Bp);CHKERRQ(ierr);
+    ierr = makeSurfaceToSurfacePanelOperators_Laplace(dm, w, NULL /*n*/, NULL, &A);CHKERRQ(ierr);
+    ierr = makeSurfaceToChargePanelOperators(dm, w, NULL /*n*/, pqr, NULL, NULL, &C, &Bp);CHKERRQ(ierr);
     /* Bp = chargesurfop.dlpToCharges */
     ierr = MatTranspose(Bp, MAT_INITIAL_MATRIX, &B);CHKERRQ(ierr);
     ierr = MatDestroy(&Bp);CHKERRQ(ierr);
@@ -1372,12 +1373,13 @@ int main(int argc, char **argv)
   /* Problem data */
   DM               dm, dmSimple;
   PQRData          pqr;
+  PetscSurface     msp;
   Vec              panelAreas, vertWeights, vertNormals, react;
   PetscReal        totalArea;
   PetscInt         Np;
   SolvationContext ctx;
   /* Solvation Energies */
-  PetscScalar      Eref = 0.0, ESimple = 0.0, ESurf = 0.0, EPanel = 0.0;
+  PetscScalar      Eref = 0.0, ESimple = 0.0, ESurf = 0.0, EPanel = 0.0, EMSP = 0.0;
   PetscErrorCode   ierr;
 
   ierr = PetscInitialize(&argc, &argv, NULL, NULL);CHKERRQ(ierr);
@@ -1400,9 +1402,17 @@ int main(int argc, char **argv)
     ierr = DMPlexGetDepthStratum(dm, 0, &vStart, &vEnd);CHKERRQ(ierr);
     ierr = PetscPrintf(PETSC_COMM_WORLD, "SRF %D vertices %D cells\n", vEnd-vStart, cEnd-cStart);CHKERRQ(ierr);
   }
+  ierr = PetscSurfaceCreateMSP(PETSC_COMM_WORLD, ctx.pntFile, &msp);CHKERRQ(ierr);
+  if (msp.weights) {
+    PetscInt Nv;
+
+    ierr = VecGetSize(msp.weights, &Nv);CHKERRQ(ierr);
+    ierr = PetscPrintf(PETSC_COMM_WORLD, "MSP %D vertices\n", Nv);CHKERRQ(ierr);
+  }
   /* Calculate solvation energy */
   ierr = CalculateBEMSolvationEnergy(dm, "lsrf_", BEM_POINT, ctx.epsIn, ctx.epsOut, &pqr, vertWeights, vertNormals, react, &ESurf);CHKERRQ(ierr);
   ierr = CalculateBEMSolvationEnergy(dm, "lpanel_", BEM_PANEL, ctx.epsIn, ctx.epsOut, &pqr, panelAreas, vertNormals, react, &EPanel);CHKERRQ(ierr);
+  if (msp.weights) {ierr = CalculateBEMSolvationEnergy(msp.dm, "lmsp_", BEM_POINT, ctx.epsIn, ctx.epsOut, &pqr, msp.weights, msp.normals, react, &EMSP);CHKERRQ(ierr);}
   /* Verification */
   if (ctx.isSphere) {
     const PetscInt Np = PetscCeilReal(4.0 * PETSC_PI * PetscSqr(ctx.R))*ctx.density;
@@ -1426,6 +1436,7 @@ int main(int argc, char **argv)
     Eref = 1.0; /* TODO This should be higher resolution BEM */
     ierr = PetscPrintf(PETSC_COMM_WORLD, "Eref = %.6f ESurf  = %.6f Error = %.6f Rel. error = %.4f\n", Eref, ESurf,  Eref-ESurf,  (Eref-ESurf)/Eref);CHKERRQ(ierr);
     ierr = PetscPrintf(PETSC_COMM_WORLD, "Eref = %.6f EPanel = %.6f Error = %.6f Rel. error = %.4f\n", Eref, EPanel, Eref-EPanel, (Eref-EPanel)/Eref);CHKERRQ(ierr);
+    if (msp.weights) {ierr = PetscPrintf(PETSC_COMM_WORLD, "Eref = %.6f EMSP   = %.6f Error = %.6f Rel. error = %.4f\n", Eref, EMSP,   Eref-EMSP,   (Eref-EMSP)/Eref);CHKERRQ(ierr);}
   }
   /* Cleanup */
   ierr = VecDestroy(&vertWeights);CHKERRQ(ierr);
@@ -1433,6 +1444,7 @@ int main(int argc, char **argv)
   ierr = VecDestroy(&panelAreas);CHKERRQ(ierr);
   ierr = VecDestroy(&react);CHKERRQ(ierr);
   ierr = DMDestroy(&dm);CHKERRQ(ierr);
+  ierr = PetscSurfaceDestroy(&msp);CHKERRQ(ierr);
   ierr = PQRDestroy(&pqr);CHKERRQ(ierr);
   ierr = PetscFinalize();
   return 0;
