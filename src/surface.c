@@ -363,3 +363,133 @@ PetscErrorCode makeSphereSurface(MPI_Comm comm, PetscReal origin[], PetscReal ra
   if (solidangle) *solidangle = angle;
   PetscFunctionReturn(0);
 }
+
+#undef __FUNCT__
+#define __FUNCT__ "PetscSurfaceCreateMSP"
+/*@C
+  PetscSurfaceCreateMSP - Create a point representation of a sphereical surface from MSP output
+
+  Input Parameters:
++ comm - The MPI Comm
+. origin - The center of the sphere
+. radius - The radius of the sphere
+- numpoints - The number of points to use
+
+  Output Parameters:
++ w  - The vertex weights
+- n  - The vertex normals
+. solidangle - The angular coordinates (theta, phi)
+- dm - The DM
+
+  Level: developer
+
+  Note: This uses the method from Park, Bardhan, Makowski, Roux (2009), following reference in there
+
+.seealso: DMPlexCreateBardhanFromFile(), DMPlexCreateBardhan()
+@*/
+PetscErrorCode PetscSurfaceCreateMSP(MPI_Comm comm, const char pntFilename[], PetscSurface *s)
+{
+  PetscViewer     viewer;
+  Vec             coordinates;
+  PetscScalar    *c, *n, *w;
+  PetscReal      *coords = NULL, *normals = NULL, *weights = NULL;
+  PetscInt        Np = 0, p, d;
+  PetscMPIInt     rank;
+  PetscBool       flg;
+  PetscErrorCode  ierr;
+
+  PetscFunctionBeginUser;
+  ierr = PetscMemzero(s, sizeof(*s));CHKERRQ(ierr);
+  ierr = PetscTestFile(pntFilename, 'r', &flg);CHKERRQ(ierr);
+  if (!flg) PetscFunctionReturn(0);
+  ierr = PetscViewerCreate(comm, &viewer);CHKERRQ(ierr);
+  ierr = PetscViewerSetType(viewer, PETSCVIEWERASCII);CHKERRQ(ierr);
+  ierr = PetscViewerFileSetMode(viewer, FILE_MODE_READ);CHKERRQ(ierr);
+  ierr = PetscViewerFileSetName(viewer, pntFilename);CHKERRQ(ierr);
+  ierr = MPI_Comm_rank(comm, &rank);CHKERRQ(ierr);
+  if (!rank) {
+    PetscInt maxSize = 1000, cnt = 3;
+
+    ierr = PetscMalloc3(maxSize*3, &coords, maxSize*3, &normals, maxSize, &weights);CHKERRQ(ierr);
+    while (cnt == 3) {
+      PetscInt dummy[4];
+
+      if (Np >= maxSize) {
+        PetscReal *tmpcoords, *tmpnormals, *tmpweights;
+
+        ierr = PetscMalloc3(maxSize*2*3, &tmpcoords, maxSize*2*3, &tmpnormals, maxSize*2, &tmpweights);CHKERRQ(ierr);
+        ierr = PetscMemcpy(tmpcoords,  coords,  maxSize*3 * sizeof(PetscReal));CHKERRQ(ierr);
+        ierr = PetscMemcpy(tmpnormals, normals, maxSize*3 * sizeof(PetscReal));CHKERRQ(ierr);
+        ierr = PetscMemcpy(tmpweights, weights, maxSize   * sizeof(PetscReal));CHKERRQ(ierr);
+        ierr = PetscFree3(coords, normals, weights);CHKERRQ(ierr);
+        coords  = tmpcoords;
+        normals = tmpnormals;
+        weights = tmpweights;
+        maxSize *= 2;
+      }
+      ierr = PetscViewerRead(viewer, dummy,          4, &cnt, PETSC_INT);CHKERRQ(ierr);
+      ierr = PetscViewerRead(viewer, &coords[Np*3],  3, &cnt, PETSC_DOUBLE);CHKERRQ(ierr);
+      ierr = PetscViewerRead(viewer, &weights[Np],   1, &cnt, PETSC_DOUBLE);CHKERRQ(ierr);
+      ierr = PetscViewerRead(viewer, &normals[Np*3], 3, &cnt, PETSC_DOUBLE);CHKERRQ(ierr);
+      if (cnt == 3) ++Np;
+    }
+  }
+  ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
+  /* Create coordinates */
+  ierr = VecCreate(comm, &coordinates);CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject) coordinates, "coordinates");CHKERRQ(ierr);
+  ierr = VecSetSizes(coordinates, Np*3, PETSC_DETERMINE);CHKERRQ(ierr);
+  ierr = VecSetBlockSize(coordinates, 3);CHKERRQ(ierr);
+  ierr = VecSetType(coordinates, VECSTANDARD);CHKERRQ(ierr);
+  /* Create normals */
+  ierr = VecDuplicate(coordinates, &s->normals);CHKERRQ(ierr);
+  /* Create weights */
+  ierr = VecCreate(comm, &s->weights);CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject) s->weights, "vertex weights");CHKERRQ(ierr);
+  ierr = VecSetSizes(s->weights, Np, PETSC_DETERMINE);CHKERRQ(ierr);
+  ierr = VecSetType(s->weights, VECSTANDARD);CHKERRQ(ierr);
+  /* Set values */
+  ierr = VecGetArray(coordinates, &c);CHKERRQ(ierr);
+  ierr = VecGetArray(s->normals, &n);CHKERRQ(ierr);
+  ierr = VecGetArray(s->weights, &w);CHKERRQ(ierr);
+  for (p = 0; p < Np; ++p) {
+    w[p]     = weights[p];
+    for (d = 0; d < 3; ++d) {
+      c[p*3+d] = coords[p*3+d];
+      n[p*3+d] = normals[p*3+d];
+    }
+  }
+  ierr = VecRestoreArray(coordinates, &c);CHKERRQ(ierr);
+  ierr = VecRestoreArray(s->normals, &n);CHKERRQ(ierr);
+  ierr = VecRestoreArray(s->weights, &w);CHKERRQ(ierr);
+  ierr = PetscFree3(coords, normals, weights);CHKERRQ(ierr);
+  /* Create DM */
+  ierr = DMCreate(comm, &s->dm);CHKERRQ(ierr);
+  ierr = DMSetType(s->dm, DMSHELL);CHKERRQ(ierr);
+  ierr = DMSetCoordinatesLocal(s->dm, coordinates);CHKERRQ(ierr);
+  ierr = VecDestroy(&coordinates);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "PetscSurfaceDestroy"
+/*@
+  PetscSurfaceDestroy - Destroy the PetscSurface
+
+  Input Parameters:
+. s - The PetscSurface
+
+  Level: beginner
+
+.seealso: DMPlexCreateBardhanFromFile(), DMPlexCreateBardhan()
+@*/
+PetscErrorCode PetscSurfaceDestroy(PetscSurface *s)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBeginUser;
+  ierr = DMDestroy(&s->dm);CHKERRQ(ierr);
+  ierr = VecDestroy(&s->weights);CHKERRQ(ierr);
+  ierr = VecDestroy(&s->normals);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
