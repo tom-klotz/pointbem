@@ -1,6 +1,6 @@
 SRF 417 vertices 830 cells
 Total area: 449.024 Sphere area: 452.389
 Simple 453 vertices
-Eref = -83.592836 ESRF    = -85.930866 Error = 2.338030 Rel. error = -0.0280
+Eref = -83.592836 ESurf   = -85.930866 Error = 2.338030 Rel. error = -0.0280
 Eref = -83.592836 ESimple = -86.308935 Error = 2.716099 Rel. error = -0.0325
 Eref = -83.592836 EPanel  = -84.249312 Error = 0.656476 Rel. error = -0.0079
