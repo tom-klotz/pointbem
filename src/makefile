@@ -7,6 +7,9 @@ testSrfOnSurfacePoints: testSrfOnSurfacePoints.o surface.o
 regression:
 	${PETSC_DIR}/config/builder2.py check [testSrfOnSurfacePoints.c,surface.c] --regParams=testParams ${ARGS}
 
+figures:
+	./meshConvergence.py ./meshConvSphere.png
+
 msp:
 	../../msp/bin/msroll -m ../../jay-asymmetry/saltresidues/asp/asp.pdb -q asp.pqms -j asp.pnt
 	../../msp/bin/msdraw -i asp.script -r asp.sgi
