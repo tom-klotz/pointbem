@@ -9,6 +9,7 @@ regression:
 
 figures:
 	./meshConvergence.py ./meshConvSphere.png
+	./workPrecision.py ./workPrecSphere.png
 
 msp:
 	../../msp/bin/msroll -m ../../jay-asymmetry/saltresidues/asp/asp.pdb -q asp.pqms -j asp.pnt
