@@ -5,6 +5,9 @@
 
 typedef enum {BEM_POINT, BEM_PANEL} BEMType;
 
+/* Performance characterization */
+PetscLogEvent CalcE_Event, CalcL_Event, CalcStoQ_Event, CalcStoS_Event, IntegratePanel_Event;
+
 typedef struct {
   Vec q;   /* Charge values */
   Vec xyz; /* Charge coordinates, always 3D */
@@ -70,6 +73,12 @@ PetscErrorCode ProcessOptions(MPI_Comm comm, SolvationContext *ctx)
 
   ierr = PetscSNPrintf(ctx->srfFile, PETSC_MAX_PATH_LEN-1, "%s%d.srf", ctx->basename, (int) ctx->srfNum);CHKERRQ(ierr);
   ierr = PetscSNPrintf(ctx->pntFile, PETSC_MAX_PATH_LEN-1, "%s%d.pnt", ctx->basename, (int) ctx->srfNum);CHKERRQ(ierr);
+
+  ierr = PetscLogEventRegister("IntegratePanel",   DM_CLASSID, &IntegratePanel_Event);CHKERRQ(ierr);
+  ierr = PetscLogEventRegister("CalcSurfToSurf",   DM_CLASSID, &CalcStoS_Event);CHKERRQ(ierr);
+  ierr = PetscLogEventRegister("CalcSurfToCharge", DM_CLASSID, &CalcStoQ_Event);CHKERRQ(ierr);
+  ierr = PetscLogEventRegister("CalcLMatrix",      DM_CLASSID, &CalcL_Event);CHKERRQ(ierr);
+  ierr = PetscLogEventRegister("CalcSolvEnergy",   DM_CLASSID, &CalcE_Event);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -747,6 +756,7 @@ PetscErrorCode IntegratePanel(PetscInt numCorners, const PetscReal npanel[], con
   PetscErrorCode ierr;
 
   PetscFunctionBeginUser;
+  ierr = PetscLogEventBegin(IntegratePanel_Event, 0, 0, 0, 0);CHKERRQ(ierr);
   for (c = 0; c < numCorners; ++c) {
     /* Jay used a left-handed coordinate system, so iterate backwards */
     const PetscInt curr = (numCorners - c)%numCorners;
@@ -879,13 +889,16 @@ PetscErrorCode IntegratePanel(PetscInt numCorners, const PetscReal npanel[], con
     fsy = fsy - zn*fdy;
     fes = normal[0]*fsx + normal[1]*fsy - normal[2]*fd;
     fed = normal[0]*fdx + normal[1]*fdy + normal[2]*fdz;
+    ierr = PetscLogFlops((2 + 61) * numCorners + 14);CHKERRQ(ierr);
   }
+  ierr = PetscLogFlops((24 + 29) * numCorners + 2);CHKERRQ(ierr);
 
   /* No area normalization */
   *fss = fs;
   *fds = fd;
   if (normal) *fess = fes;
   if (normal) *feds = fed;
+  ierr = PetscLogEventEnd(IntegratePanel_Event, 0, 0, 0, 0);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -909,14 +922,15 @@ PetscErrorCode IntegratePanel(PetscInt numCorners, const PetscReal npanel[], con
 @*/
 PetscErrorCode makeSurfaceToSurfacePanelOperators_Laplace(DM dm, Vec w, Vec n, Mat *V, Mat *K)
 {
-
-  Vec            coordinates;
-  PetscSection   coordSection;
-  PetscInt       Np;
-  PetscInt       i, j, d;
-  PetscErrorCode ierr;
+  const PetscReal fac = 1.0/4.0/PETSC_PI;
+  Vec             coordinates;
+  PetscSection    coordSection;
+  PetscInt        Np;
+  PetscInt        i, j, d;
+  PetscErrorCode  ierr;
 
   PetscFunctionBeginUser;
+  ierr = PetscLogEventBegin(CalcStoS_Event, 0, 0, 0, 0);CHKERRQ(ierr);
   ierr = DMGetCoordinateSection(dm, &coordSection);CHKERRQ(ierr);
   ierr = DMGetCoordinatesLocal(dm, &coordinates);CHKERRQ(ierr);
   ierr = DMPlexGetHeightStratum(dm, 0, NULL, &Np);CHKERRQ(ierr);
@@ -930,7 +944,7 @@ PetscErrorCode makeSurfaceToSurfacePanelOperators_Laplace(DM dm, Vec w, Vec n, M
     ierr = DMPlexGetConeSize(dm, i, &numCorners);CHKERRQ(ierr);
     ierr = DMPlexVecGetClosure(dm, coordSection, coordinates, i, &coordSize, &coords);CHKERRQ(ierr);
     for (d = 0; d < 3; ++d) v0[d] = coords[d];
-    ierr = DMPlexComputeProjection3Dto2D_Internal(coordSize, coords, R);CHKERRQ(ierr);
+    ierr = DMPlexComputeProjection3Dto2D_Internal(coordSize, coords, R);CHKERRQ(ierr); /* 28 + 36 + 27 = 91 flops */
     for (d = 0; d < numCorners; ++d) {
       panel[d*3+0] = PetscRealPart(coords[d*2+0]);
       panel[d*3+1] = PetscRealPart(coords[d*2+1]);
@@ -960,13 +974,17 @@ PetscErrorCode makeSurfaceToSurfacePanelOperators_Laplace(DM dm, Vec w, Vec n, M
       /*  TODO pass normals if we want fess for Kp */
       ierr = IntegratePanel(numCorners, panel, cloc, NULL, &fss, &fds, NULL, NULL);CHKERRQ(ierr);
 
-      if (V) {ierr = MatSetValue(*V, j, i, fss/4/PETSC_PI, INSERT_VALUES);CHKERRQ(ierr);}
-      if (K) {ierr = MatSetValue(*K, j, i, fds/4/PETSC_PI, INSERT_VALUES);CHKERRQ(ierr);}
-      //if (Kp) {ierr = MatSetValue(*singleLayer, j, i, fess/4/PETSC_PI, INSERT_VALUES);CHKERRQ(ierr);}
+      if (V) {ierr = MatSetValue(*V, j, i, fss*fac, INSERT_VALUES);CHKERRQ(ierr);}
+      if (K) {ierr = MatSetValue(*K, j, i, fds*fac, INSERT_VALUES);CHKERRQ(ierr);}
+      /* if (Kp) {ierr = MatSetValue(*singleLayer, j, i, fess/4/PETSC_PI, INSERT_VALUES);CHKERRQ(ierr);} */
     }
   }
+  ierr = PetscLogFlops(37 * Np*Np + 91 * Np + 2);CHKERRQ(ierr);
+  if (V) {ierr = PetscLogFlops(Np*Np);CHKERRQ(ierr);}
+  if (K) {ierr = PetscLogFlops(Np*Np);CHKERRQ(ierr);}
   if (V) {ierr = MatAssemblyBegin(*V, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);ierr = MatAssemblyEnd(*V, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);}
   if (K) {ierr = MatAssemblyBegin(*K, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);ierr = MatAssemblyEnd(*K, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);}
+  ierr = PetscLogEventEnd(CalcStoS_Event, 0, 0, 0, 0);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -993,7 +1011,7 @@ PetscErrorCode makeSurfaceToSurfacePanelOperators_Laplace(DM dm, Vec w, Vec n, M
 @*/
 PetscErrorCode makeSurfaceToChargePanelOperators(DM dm, Vec w, Vec n, PQRData *pqr, Mat *potential, Mat *field, Mat *singleLayer, Mat *doubleLayer)
 {
-
+  const PetscReal    fac = 1.0/4.0/PETSC_PI;
   Vec                coordinates;
   PetscSection       coordSection;
   const PetscScalar *xyz;
@@ -1002,6 +1020,7 @@ PetscErrorCode makeSurfaceToChargePanelOperators(DM dm, Vec w, Vec n, PQRData *p
   PetscErrorCode     ierr;
 
   PetscFunctionBeginUser;
+  ierr = PetscLogEventBegin(CalcStoQ_Event, 0, 0, 0, 0);CHKERRQ(ierr);
   ierr = DMGetCoordinateSection(dm, &coordSection);CHKERRQ(ierr);
   ierr = DMGetCoordinatesLocal(dm, &coordinates);CHKERRQ(ierr);
   ierr = VecGetLocalSize(pqr->q, &Nq);CHKERRQ(ierr);
@@ -1020,7 +1039,7 @@ PetscErrorCode makeSurfaceToChargePanelOperators(DM dm, Vec w, Vec n, PQRData *p
     ierr = DMPlexGetConeSize(dm, i, &numCorners);CHKERRQ(ierr);
     ierr = DMPlexVecGetClosure(dm, coordSection, coordinates, i, &coordSize, &coords);CHKERRQ(ierr);
     for (d = 0; d < 3; ++d) v0[d] = coords[d];
-    ierr = DMPlexComputeProjection3Dto2D_Internal(coordSize, coords, R);CHKERRQ(ierr);
+    ierr = DMPlexComputeProjection3Dto2D_Internal(coordSize, coords, R);CHKERRQ(ierr); /* 28 + 36 + 27 = 91 flops */
     for (d = 0; d < numCorners; ++d) {
       panel[d*3+0] = PetscRealPart(coords[d*2+0]);
       panel[d*3+1] = PetscRealPart(coords[d*2+1]);
@@ -1051,17 +1070,21 @@ PetscErrorCode makeSurfaceToChargePanelOperators(DM dm, Vec w, Vec n, PQRData *p
       }
 #endif
 
-      if (potential)   {ierr = MatSetValue(*potential,   i, j, 0.0,            INSERT_VALUES);CHKERRQ(ierr);}
-      if (field)       {ierr = MatSetValue(*field,       i, j, 0.0,            INSERT_VALUES);CHKERRQ(ierr);}
-      if (singleLayer) {ierr = MatSetValue(*singleLayer, j, i, fss/4/PETSC_PI, INSERT_VALUES);CHKERRQ(ierr);}
-      if (doubleLayer) {ierr = MatSetValue(*doubleLayer, j, i, fds/4/PETSC_PI, INSERT_VALUES);CHKERRQ(ierr);}
+      if (potential)   {ierr = MatSetValue(*potential,   i, j, 0.0,     INSERT_VALUES);CHKERRQ(ierr);}
+      if (field)       {ierr = MatSetValue(*field,       i, j, 0.0,     INSERT_VALUES);CHKERRQ(ierr);}
+      if (singleLayer) {ierr = MatSetValue(*singleLayer, j, i, fss*fac, INSERT_VALUES);CHKERRQ(ierr);}
+      if (doubleLayer) {ierr = MatSetValue(*doubleLayer, j, i, fds*fac, INSERT_VALUES);CHKERRQ(ierr);}
     }
   }
+  ierr = PetscLogFlops(27 * Np*Nq + 91 * Np + 2);CHKERRQ(ierr);
+  if (singleLayer) {ierr = PetscLogFlops(Np*Nq);CHKERRQ(ierr);}
+  if (doubleLayer) {ierr = PetscLogFlops(Np*Nq);CHKERRQ(ierr);}
   ierr = VecRestoreArrayRead(pqr->xyz, &xyz);CHKERRQ(ierr);
   if (potential)   {ierr = MatAssemblyBegin(*potential,   MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);ierr = MatAssemblyEnd(*potential,   MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);}
   if (field)       {ierr = MatAssemblyBegin(*field,       MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);ierr = MatAssemblyEnd(*field,       MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);}
   if (singleLayer) {ierr = MatAssemblyBegin(*singleLayer, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);ierr = MatAssemblyEnd(*singleLayer, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);}
   if (doubleLayer) {ierr = MatAssemblyBegin(*doubleLayer, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);ierr = MatAssemblyEnd(*doubleLayer, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);}
+  ierr = PetscLogEventEnd(CalcStoQ_Event, 0, 0, 0, 0);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -1088,12 +1111,14 @@ PetscErrorCode makeSurfaceToChargePanelOperators(DM dm, Vec w, Vec n, PQRData *p
 @*/
 PetscErrorCode makeSurfaceToChargePointOperators(Vec coordinates, Vec w, Vec n, PQRData *pqr, Mat *potential, Mat *field, Mat *singleLayer, Mat *doubleLayer)
 {
+  const PetscReal    fac = 1.0/4.0/PETSC_PI;
   const PetscScalar *coords, *xyz, *weights, *normals;
   PetscInt           Nq, Np;
   PetscInt           i, j, d;
   PetscErrorCode     ierr;
 
   PetscFunctionBeginUser;
+  ierr = PetscLogEventBegin(CalcStoQ_Event, 0, 0, 0, 0);CHKERRQ(ierr);
   ierr = VecGetLocalSize(pqr->q, &Nq);CHKERRQ(ierr);
   ierr = VecGetLocalSize(w, &Np);CHKERRQ(ierr);
   if (potential)   {ierr = MatCreateSeqDense(PETSC_COMM_SELF, Np, Nq, NULL, potential);CHKERRQ(ierr);}
@@ -1113,8 +1138,8 @@ PetscErrorCode makeSurfaceToChargePointOperators(Vec coordinates, Vec w, Vec n, 
       for (d = 0; d < 3; ++d) {rvec[d] = coords[i*3+d] - xyz[j*3+d]; dot += rvec[d]*normals[i*3+d]; r += PetscSqr(rvec[d]);}
       r = PetscSqrtReal(r);
 
-      if (r < 1e-10) {G = 0;                dGdn = 0;}
-      else           {G = 1.0/4/PETSC_PI/r; dGdn = -dot/4/PETSC_PI/PetscPowRealInt(r, 3);}
+      if (r < 1e-10) {G = 0;     dGdn = 0;}
+      else           {G = fac/r; dGdn = -dot*fac/PetscPowRealInt(r, 3);}
 
       if (potential)   {ierr = MatSetValue(*potential,   i, j, G,               INSERT_VALUES);CHKERRQ(ierr);}
       if (field)       {ierr = MatSetValue(*field,       i, j, dGdn,            INSERT_VALUES);CHKERRQ(ierr);}
@@ -1122,6 +1147,9 @@ PetscErrorCode makeSurfaceToChargePointOperators(Vec coordinates, Vec w, Vec n, 
       if (doubleLayer) {ierr = MatSetValue(*doubleLayer, j, i, dGdn*weights[i], INSERT_VALUES);CHKERRQ(ierr);}
     }
   }
+  ierr = PetscLogFlops(16 * Np*Nq + 2);CHKERRQ(ierr);
+  if (singleLayer) {ierr = PetscLogFlops(Np*Nq);CHKERRQ(ierr);}
+  if (doubleLayer) {ierr = PetscLogFlops(Np*Nq);CHKERRQ(ierr);}
   ierr = VecRestoreArrayRead(coordinates, &coords);CHKERRQ(ierr);
   ierr = VecRestoreArrayRead(pqr->xyz, &xyz);CHKERRQ(ierr);
   ierr = VecRestoreArrayRead(w, &weights);CHKERRQ(ierr);
@@ -1130,6 +1158,7 @@ PetscErrorCode makeSurfaceToChargePointOperators(Vec coordinates, Vec w, Vec n, 
   if (field)       {ierr = MatAssemblyBegin(*field,       MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);ierr = MatAssemblyEnd(*field,       MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);}
   if (singleLayer) {ierr = MatAssemblyBegin(*singleLayer, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);ierr = MatAssemblyEnd(*singleLayer, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);}
   if (doubleLayer) {ierr = MatAssemblyBegin(*doubleLayer, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);ierr = MatAssemblyEnd(*doubleLayer, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);}
+  ierr = PetscLogEventEnd(CalcStoQ_Event, 0, 0, 0, 0);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -1156,11 +1185,13 @@ PetscErrorCode makeSurfaceToChargePointOperators(Vec coordinates, Vec w, Vec n, 
 @*/
 PetscErrorCode makeSurfaceToSurfacePointOperators_Laplace(Vec coordinates, Vec w, Vec n, Mat *V, Mat *K)
 {
+  const PetscReal    fac = 1.0/4.0/PETSC_PI;
   const PetscScalar *coords, *weights, *normals;
   PetscInt           Np, i, j, d;
   PetscErrorCode     ierr;
 
   PetscFunctionBeginUser;
+  ierr = PetscLogEventBegin(CalcStoS_Event, 0, 0, 0, 0);CHKERRQ(ierr);
   ierr = VecGetLocalSize(w, &Np);CHKERRQ(ierr);
   if (V) {ierr = MatCreateSeqDense(PETSC_COMM_SELF, Np, Np, NULL, V);CHKERRQ(ierr);}
   if (K) {ierr = MatCreateSeqDense(PETSC_COMM_SELF, Np, Np, NULL, K);CHKERRQ(ierr);}
@@ -1175,19 +1206,23 @@ PetscErrorCode makeSurfaceToSurfacePointOperators_Laplace(Vec coordinates, Vec w
       for (d = 0; d < 3; ++d) {rvec[d] = coords[i*3+d] - coords[j*3+d]; dot += rvec[d]*normals[j*3+d]; r += PetscSqr(rvec[d]);}
       r = PetscSqrtReal(r);
       if (r > 1e-6) {
-        if (V) {ierr = MatSetValue(*V, i, j, weights[j]* 1/4/PETSC_PI/r, INSERT_VALUES);CHKERRQ(ierr);}
-        if (K) {ierr = MatSetValue(*K, i, j, weights[j]* dot/4/PETSC_PI/PetscPowRealInt(r,3), INSERT_VALUES);CHKERRQ(ierr);}
+        if (V) {ierr = MatSetValue(*V, i, j, weights[j]* fac/r, INSERT_VALUES);CHKERRQ(ierr);}
+        if (K) {ierr = MatSetValue(*K, i, j, weights[j]* dot*fac/PetscPowRealInt(r,3), INSERT_VALUES);CHKERRQ(ierr);}
       } else {
         const PetscReal R0 = PetscSqrtReal(weights[j]/PETSC_PI); /* radius of a circle with the area assoc with surfpt j */
         if (V) {ierr = MatSetValue(*V, i, j, (2 * PETSC_PI * R0) /4/PETSC_PI, INSERT_VALUES);CHKERRQ(ierr);}
       }
     }
   }
+  ierr = PetscLogFlops(16 * Np*Np + 2);CHKERRQ(ierr);
+  if (V) {ierr = PetscLogFlops(2 * Np*Np);CHKERRQ(ierr);}
+  if (K) {ierr = PetscLogFlops(5 * Np*Np);CHKERRQ(ierr);}
   ierr = VecRestoreArrayRead(coordinates, &coords);CHKERRQ(ierr);
   ierr = VecRestoreArrayRead(w, &weights);CHKERRQ(ierr);
   ierr = VecRestoreArrayRead(n, &normals);CHKERRQ(ierr);
   if (V) {ierr = MatAssemblyBegin(*V, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);ierr = MatAssemblyEnd(*V, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);}
   if (K) {ierr = MatAssemblyBegin(*K, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);ierr = MatAssemblyEnd(*K, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);}
+  ierr = PetscLogEventEnd(CalcStoS_Event, 0, 0, 0, 0);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -1225,6 +1260,7 @@ PetscErrorCode makeBEMPcmQualMatrices(DM dm, BEMType bem, PetscReal epsIn, Petsc
   case BEM_POINT:
     ierr = makeSurfaceToSurfacePointOperators_Laplace(coordinates, w, n, NULL, &A);CHKERRQ(ierr);
     ierr = makeSurfaceToChargePointOperators(coordinates, w, n, pqr, NULL, &B, &C, NULL);CHKERRQ(ierr);
+    ierr = PetscLogEventBegin(CalcL_Event, 0, 0, 0, 0);CHKERRQ(ierr);
     /* B = chargesurfop.dphidnCoul */
     ierr = MatDiagonalScale(B, w, NULL);CHKERRQ(ierr);
     ierr = MatScale(B, -1/epsIn);CHKERRQ(ierr);
@@ -1232,6 +1268,7 @@ PetscErrorCode makeBEMPcmQualMatrices(DM dm, BEMType bem, PetscReal epsIn, Petsc
   case BEM_PANEL:
     ierr = makeSurfaceToSurfacePanelOperators_Laplace(dm, w, NULL /*n*/, NULL, &A);CHKERRQ(ierr);
     ierr = makeSurfaceToChargePanelOperators(dm, w, NULL /*n*/, pqr, NULL, NULL, &C, &Bp);CHKERRQ(ierr);
+    ierr = PetscLogEventBegin(CalcL_Event, 0, 0, 0, 0);CHKERRQ(ierr);
     /* Bp = chargesurfop.dlpToCharges */
     ierr = MatTranspose(Bp, MAT_INITIAL_MATRIX, &B);CHKERRQ(ierr);
     ierr = MatDestroy(&Bp);CHKERRQ(ierr);
@@ -1266,6 +1303,7 @@ PetscErrorCode makeBEMPcmQualMatrices(DM dm, BEMType bem, PetscReal epsIn, Petsc
   ierr = MatMatMult(C, S, MAT_INITIAL_MATRIX, PETSC_DEFAULT, L);CHKERRQ(ierr);
   ierr = MatDestroy(&S);CHKERRQ(ierr);
   ierr = MatDestroy(&C);CHKERRQ(ierr);
+  ierr = PetscLogEventEnd(CalcL_Event, 0, 0, 0, 0);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -1353,10 +1391,12 @@ PetscErrorCode CalculateBEMSolvationEnergy(DM dm, const char prefix[], BEMType b
   ierr = PetscObjectSetOptionsPrefix((PetscObject) L, prefix);CHKERRQ(ierr);
   ierr = MatViewFromOptions(L, NULL, "-mat_view");CHKERRQ(ierr);
 
+  ierr = PetscLogEventBegin(CalcE_Event, L, react, pqr->q, 0);CHKERRQ(ierr);
   ierr = MatMult(L, pqr->q, react);CHKERRQ(ierr);
   ierr = MatDestroy(&L);CHKERRQ(ierr);
   ierr = VecDot(pqr->q, react, E);CHKERRQ(ierr);
   *E  *= cf * 0.5;
+  ierr = PetscLogEventEnd(CalcE_Event, L, react, pqr->q, 0);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -1380,9 +1420,11 @@ int main(int argc, char **argv)
   SolvationContext ctx;
   /* Solvation Energies */
   PetscScalar      Eref = 0.0, ESimple = 0.0, ESurf = 0.0, EPanel = 0.0, EMSP = 0.0;
+  PetscLogStage    stageSimple, stageSurf, stagePanel, stageMSP;
   PetscErrorCode   ierr;
 
   ierr = PetscInitialize(&argc, &argv, NULL, NULL);CHKERRQ(ierr);
+  ierr = PetscLogBegin();CHKERRQ(ierr);
   ierr = ProcessOptions(PETSC_COMM_WORLD, &ctx);CHKERRQ(ierr);
   /* Make PQR */
   if (ctx.isSphere) {
@@ -1410,9 +1452,20 @@ int main(int argc, char **argv)
     ierr = PetscPrintf(PETSC_COMM_WORLD, "MSP %D vertices\n", Nv);CHKERRQ(ierr);
   }
   /* Calculate solvation energy */
+  ierr = PetscLogStageRegister("Point Surface", &stageSurf);CHKERRQ(ierr);
+  ierr = PetscLogStageRegister("Panel Surface", &stagePanel);CHKERRQ(ierr);
+  ierr = PetscLogStagePush(stageSurf);CHKERRQ(ierr);
   ierr = CalculateBEMSolvationEnergy(dm, "lsrf_", BEM_POINT, ctx.epsIn, ctx.epsOut, &pqr, vertWeights, vertNormals, react, &ESurf);CHKERRQ(ierr);
+  ierr = PetscLogStagePop();CHKERRQ(ierr);
+  ierr = PetscLogStagePush(stagePanel);CHKERRQ(ierr);
   ierr = CalculateBEMSolvationEnergy(dm, "lpanel_", BEM_PANEL, ctx.epsIn, ctx.epsOut, &pqr, panelAreas, vertNormals, react, &EPanel);CHKERRQ(ierr);
-  if (msp.weights) {ierr = CalculateBEMSolvationEnergy(msp.dm, "lmsp_", BEM_POINT, ctx.epsIn, ctx.epsOut, &pqr, msp.weights, msp.normals, react, &EMSP);CHKERRQ(ierr);}
+  ierr = PetscLogStagePop();CHKERRQ(ierr);
+  if (msp.weights) {
+    ierr = PetscLogStageRegister("MSP Surface", &stageMSP);CHKERRQ(ierr);
+    ierr = PetscLogStagePush(stageMSP);CHKERRQ(ierr);
+    ierr = CalculateBEMSolvationEnergy(msp.dm, "lmsp_", BEM_POINT, ctx.epsIn, ctx.epsOut, &pqr, msp.weights, msp.normals, react, &EMSP);CHKERRQ(ierr);
+    ierr = PetscLogStagePop();CHKERRQ(ierr);
+  }
   /* Verification */
   if (ctx.isSphere) {
     const PetscInt Np = PetscCeilReal(4.0 * PETSC_PI * PetscSqr(ctx.R))*ctx.density;
@@ -1423,7 +1476,10 @@ int main(int argc, char **argv)
     ierr = PetscPrintf(PETSC_COMM_WORLD, "Simple %D vertices\n", Np);CHKERRQ(ierr);
     ierr = makeSphereSurface(PETSC_COMM_WORLD, ctx.origin, ctx.R, Np, &vertWeightsSimple, &vertNormalsSimple, NULL, &dmSimple);CHKERRQ(ierr);
 
+    ierr = PetscLogStageRegister("Simple Surface", &stageSimple);CHKERRQ(ierr);
+    ierr = PetscLogStagePush(stageSimple);CHKERRQ(ierr);
     ierr = CalculateBEMSolvationEnergy(dmSimple, "lsimple_", BEM_POINT, ctx.epsIn, ctx.epsOut, &pqr, vertWeightsSimple, vertNormalsSimple, react, &ESimple);CHKERRQ(ierr);
+    ierr = PetscLogStagePop();CHKERRQ(ierr);
     ierr = CalculateAnalyticSolvationEnergy(ctx.epsIn, ctx.epsOut, &pqr, ctx.R, ctx.Nmax, react, &Eref);CHKERRQ(ierr);
     ierr = PetscPrintf(PETSC_COMM_WORLD, "Eref = %.6f ESurf   = %.6f Error = %.6f Rel. error = %.4f\n", Eref, ESurf,   Eref-ESurf,   (Eref-ESurf)/Eref);CHKERRQ(ierr);
     ierr = PetscPrintf(PETSC_COMM_WORLD, "Eref = %.6f ESimple = %.6f Error = %.6f Rel. error = %.4f\n", Eref, ESimple, Eref-ESimple, (Eref-ESimple)/Eref);CHKERRQ(ierr);
@@ -1437,6 +1493,22 @@ int main(int argc, char **argv)
     ierr = PetscPrintf(PETSC_COMM_WORLD, "Eref = %.6f ESurf  = %.6f Error = %.6f Rel. error = %.4f\n", Eref, ESurf,  Eref-ESurf,  (Eref-ESurf)/Eref);CHKERRQ(ierr);
     ierr = PetscPrintf(PETSC_COMM_WORLD, "Eref = %.6f EPanel = %.6f Error = %.6f Rel. error = %.4f\n", Eref, EPanel, Eref-EPanel, (Eref-EPanel)/Eref);CHKERRQ(ierr);
     if (msp.weights) {ierr = PetscPrintf(PETSC_COMM_WORLD, "Eref = %.6f EMSP   = %.6f Error = %.6f Rel. error = %.4f\n", Eref, EMSP,   Eref-EMSP,   (Eref-EMSP)/Eref);CHKERRQ(ierr);}
+  }
+  /* Output flops */
+  {
+    PetscStageLog stageLog;
+
+    ierr = PetscLogGetStageLog(&stageLog);CHKERRQ(ierr);
+    ierr = PetscPrintf(PETSC_COMM_WORLD, "Flops_Surf  = %.4e Flops_S2S_Surf  = %.4e\n",
+                       stageLog->stageInfo[stageSurf].perfInfo.flops, stageLog->stageInfo[stageSurf].eventLog->eventInfo[CalcStoS_Event].flops);CHKERRQ(ierr);
+    ierr = PetscPrintf(PETSC_COMM_WORLD, "Flops_Panel = %.4e Flops_S2S_Panel = %.4e\n",
+                       stageLog->stageInfo[stagePanel].perfInfo.flops, stageLog->stageInfo[stagePanel].eventLog->eventInfo[CalcStoS_Event].flops);CHKERRQ(ierr);
+    if (msp.weights) {ierr = PetscPrintf(PETSC_COMM_WORLD, "Flops_MSP   = %.4e Flops_S2S_MSP   = %.4e\n",
+                                         stageLog->stageInfo[stageMSP].perfInfo.flops, stageLog->stageInfo[stageMSP].eventLog->eventInfo[CalcStoS_Event].flops);CHKERRQ(ierr);
+    }
+    if (ctx.isSphere) {ierr = PetscPrintf(PETSC_COMM_WORLD, "Flops_Simple = %.4e Flops_S2S_Simple = %.4e\n",
+                                          stageLog->stageInfo[stageSimple].perfInfo.flops, stageLog->stageInfo[stageSimple].eventLog->eventInfo[CalcStoS_Event].flops);CHKERRQ(ierr);
+    }
   }
   /* Cleanup */
   ierr = VecDestroy(&vertWeights);CHKERRQ(ierr);
