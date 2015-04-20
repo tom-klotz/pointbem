@@ -1192,9 +1192,9 @@ PetscErrorCode makeSurfaceToSurfacePointOperators_Laplace(Vec coordinates, Vec w
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "makeBEMEcfQualMatrices"
+#define __FUNCT__ "makeBEMPcmQualMatrices"
 /*@
-  makeBEMEcfQualMatrices - Make solvation matrix, L = C A^{-1} B
+  makeBEMPcmQualMatrices - Make solvation matrix, L = C A^{-1} B in the Polarizable Continuum Model
 
   Input Parameters:
 + epsIn - the dielectric constant inside the protein
@@ -1211,7 +1211,7 @@ PetscErrorCode makeSurfaceToSurfacePointOperators_Laplace(Vec coordinates, Vec w
 
 .seealso: doAnalytical()
 @*/
-PetscErrorCode makeBEMEcfQualMatrices(DM dm, BEMType bem, PetscReal epsIn, PetscReal epsOut, PQRData *pqr, Vec coordinates, Vec w, Vec n, Mat *L)
+PetscErrorCode makeBEMPcmQualMatrices(DM dm, BEMType bem, PetscReal epsIn, PetscReal epsOut, PQRData *pqr, Vec coordinates, Vec w, Vec n, Mat *L)
 {
   const PetscReal epsHat = (epsIn + epsOut)/(epsIn - epsOut);
   KSP             ksp;
@@ -1348,7 +1348,7 @@ PetscErrorCode CalculateBEMSolvationEnergy(DM dm, const char prefix[], BEMType b
   PetscValidPointer(pqr, 6);
   PetscValidPointer(E, 10);
   ierr = DMGetCoordinatesLocal(dm, &coords);CHKERRQ(ierr);
-  ierr = makeBEMEcfQualMatrices(dm, bem, epsIn, epsOut, pqr, coords, w, n, &L);CHKERRQ(ierr);
+  ierr = makeBEMPcmQualMatrices(dm, bem, epsIn, epsOut, pqr, coords, w, n, &L);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) L, "L");CHKERRQ(ierr);
   ierr = PetscObjectSetOptionsPrefix((PetscObject) L, prefix);CHKERRQ(ierr);
   ierr = MatViewFromOptions(L, NULL, "-mat_view");CHKERRQ(ierr);
