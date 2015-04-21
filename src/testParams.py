@@ -1,14 +1,16 @@
 regressionParameters = {'../../biology/pointbem-petsc/src/testSrfOnSurfacePoints':
-                            [# Sphere tests [0-8]
-                             {'numProcs': 1, 'args': '-num_charges 1 -nmax 25'},
-                             {'numProcs': 1, 'args': '-num_charges 10 -nmax 25'},
-                             {'numProcs': 1, 'args': '-num_charges 10 -nmax 25 -srf_num 2 -density 2.0'},
-                             {'numProcs': 1, 'args': '-num_charges 10 -nmax 25 -srf_num 3 -density 3.0'},
-                             {'numProcs': 1, 'args': '-num_charges 10 -nmax 25 -srf_num 4 -density 4.0'},
-                             {'numProcs': 1, 'args': '-num_charges 10 -nmax 25 -srf_num 5 -density 5.0'},
-                             {'numProcs': 1, 'args': '-num_charges 10 -nmax 25 -srf_num 6 -density 6.0'},
-                             {'numProcs': 1, 'args': '-num_charges 10 -nmax 25 -srf_num 8 -density 8.0'},
-                             {'numProcs': 1, 'args': '-num_charges 10 -nmax 25 -srf_num 10 -density 10.0'},
+                            [# Sphere tests [sphere_0-sphere_10]
+                             {'num': 'sphere_0',  'numProcs': 1, 'args': '-srf_base ../../jay-pointbem/geometry/sphere_R6_vdens0 -num_charges 10 -nmax 25 -srf_num 0125 -density 0.125'},
+                             {'num': 'sphere_1',  'numProcs': 1, 'args': '-srf_base ../../jay-pointbem/geometry/sphere_R6_vdens0 -num_charges 10 -nmax 25 -srf_num 025 -density 0.25'},
+                             {'num': 'sphere_2',  'numProcs': 1, 'args': '-srf_base ../../jay-pointbem/geometry/sphere_R6_vdens0 -num_charges 10 -nmax 25 -srf_num 05 -density 0.5'},
+                             {'num': 'sphere_3',  'numProcs': 1, 'args': '-num_charges 10 -nmax 25 -srf_num 1 -density 1.0'},
+                             {'num': 'sphere_4',  'numProcs': 1, 'args': '-num_charges 10 -nmax 25 -srf_num 2 -density 2.0'},
+                             {'num': 'sphere_5',  'numProcs': 1, 'args': '-num_charges 10 -nmax 25 -srf_num 3 -density 3.0'},
+                             {'num': 'sphere_6',  'numProcs': 1, 'args': '-num_charges 10 -nmax 25 -srf_num 4 -density 4.0'},
+                             {'num': 'sphere_7',  'numProcs': 1, 'args': '-num_charges 10 -nmax 25 -srf_num 5 -density 5.0'},
+                             {'num': 'sphere_8',  'numProcs': 1, 'args': '-num_charges 10 -nmax 25 -srf_num 6 -density 6.0'},
+                             {'num': 'sphere_9',  'numProcs': 1, 'args': '-num_charges 10 -nmax 25 -srf_num 8 -density 8.0'},
+                             {'num': 'sphere_10', 'numProcs': 1, 'args': '-num_charges 10 -nmax 25 -srf_num 10 -density 10.0'},
                              # Arginine tests [arg_0-arg_13]
                              {'num': 'arg_0',  'numProcs': 1, 'args': '-is_sphere 0 -pdb_filename ../../jay-asymmetry/saltresidues/arg/arg.pdb -crg_filename ../../jay-asymmetry/saltresidues/arg/jr1.crg -srf_base ../../jay-asymmetry/saltresidues/arg/arg_scaledcharmm_ -srf_num 1'},
                              {'num': 'arg_1',  'numProcs': 1, 'args': '-is_sphere 0 -pdb_filename ../../jay-asymmetry/saltresidues/arg/arg.pdb -crg_filename ../../jay-asymmetry/saltresidues/arg/jr1.crg -srf_base ../../jay-asymmetry/saltresidues/arg/arg_scaledcharmm_ -srf_num 2'},
