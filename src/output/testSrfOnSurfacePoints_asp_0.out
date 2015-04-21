@@ -1,0 +1,8 @@
+SRF 209 vertices 414 cells
+MSP 254 vertices
+Eref = 1.000000 ESurf  = -3.678066 Error = 4.678066 Rel. error = 4.6781
+Eref = 1.000000 EPanel = -4.173012 Error = 5.173012 Rel. error = 5.1730
+Eref = 1.000000 EMSP   = -1.824653 Error = 2.824653 Rel. error = 2.8247
+Flops_Surf  = 9.2406e+06 Flops_S2S_Surf  = 9.1730e+05
+Flops_Panel = 9.1786e+07 Flops_S2S_Panel = 3.4145e+07
+Flops_MSP   = 1.5558e+07 Flops_S2S_MSP   = 1.3548e+06
