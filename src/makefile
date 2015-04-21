@@ -9,9 +9,19 @@ testSrfOnSurfacePoints: testSrfOnSurfacePoints.o surface.o
 regression:
 	${PETSC_DIR}/config/builder2.py check [testSrfOnSurfacePoints.c,surface.c] --regParams=testParams ${ARGS}
 
-figures:
-	./meshConvergence.py ./meshConvSphere.png
-	./workPrecision.py ./workPrecSphere.png
+figures_sphere:
+	./meshConvergence.py --type=sphere --output=meshConvSphere
+	./workPrecision.py --type=sphere --output=workPrecSphere
+
+figures_arg:
+	./meshConvergence.py --type=arg --output=meshConvARG
+	./workPrecision.py --type=arg --output=workPrecARG
+
+figures_asp:
+	./meshConvergence.py --type=asp --output=meshConvASP
+	./workPrecision.py --type=asp --output=workPrecASP
+
+figures: figures_sphere figures_arg figures_asp
 
 #  -y asp.pat -r asp.rad
 msp:
