@@ -1,0 +1,5 @@
+SRF 4107 vertices 8210 cells
+Eref = 1.000000 ESurf  = -26.300059 Error = 27.300059 Rel. error = 27.3001
+Eref = 1.000000 EPanel = -26.000106 Error = 27.000106 Rel. error = 27.0001
+Flops_Surf  = 4.7771e+10 Flops_S2S_Surf  = 3.5422e+08
+Flops_Panel = 3.8302e+11 Flops_S2S_Panel = 9.1192e+09
