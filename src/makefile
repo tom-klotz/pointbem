@@ -23,6 +23,15 @@ figures_asp:
 
 figures: figures_sphere figures_arg figures_asp
 
+figures_mv: figures
+	mv meshConvSphere_RelErr.png /PETSc3/papers/imece15-asme/figures/
+	mv workPrecSphere.png /PETSc3/papers/imece15-asme/figures/
+	mv meshConvARG_RelErr.png /PETSc3/papers/imece15-asme/figures/
+	mv workPrecARG.png /PETSc3/papers/imece15-asme/figures/
+	mv meshConvASP_RelErr.png /PETSc3/papers/imece15-asme/figures/
+	mv meshConvASP_SolvEng.png /PETSc3/papers/imece15-asme/figures/
+	mv workPrecASP.png /PETSc3/papers/imece15-asme/figures/
+
 #  -y asp.pat -r asp.rad
 msp:
 	-../../msp/bin/msroll -m ../../jay-asymmetry/saltresidues/asp/asp.pdb -p 0.1 -q asp.pqms -j asp.pnt

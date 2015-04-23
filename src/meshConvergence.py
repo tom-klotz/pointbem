@@ -2,7 +2,7 @@
 import utils
 
 def plotConv(args):
-  from pylab import legend, semilogx, loglog, plot, savefig, show, title, xlabel, ylabel
+  from pylab import close, legend, semilogx, loglog, plot, savefig, show, title, xlabel, ylabel
 
   output = utils.parseOutput(args)
   Nc_SRF = output[:,2]
@@ -22,7 +22,7 @@ def plotConv(args):
   RelErr_Sqrt = 7e-1*(1.0/Nc_SRF)**0.5
   RelErr_Lin  = 5e0*(1.0/Nc_SRF)
 
-  loglog(Np_SRF, abs(RelErr_SRF), Nc_SRF, abs(RelErr_PAN), Np_SRF, RelErr_Sqrt, Nc_SRF, RelErr_Lin)
+  loglog(Np_SRF, abs(RelErr_SRF), 'r', Nc_SRF, abs(RelErr_PAN), 'b', Np_SRF, RelErr_Sqrt, 'r--', Nc_SRF, RelErr_Lin, 'b--')
   if args.type == 'sphere':
     title(args.type.upper())
   else:
@@ -32,10 +32,11 @@ def plotConv(args):
   legend(['SRF', 'PAN', 'Sqrt', 'Linear'], 'upper right', shadow = True)
   if not args.output is None:
     savefig(args.output+'_RelErr.png')
+    close()
   else:
     show()
 
-  semilogx(Np_SRF, E_SRF, Nc_SRF, E_PAN, Nc_SRF, [E_ref for i in range(len(Nc_SRF))])
+  semilogx(Np_SRF, E_SRF, 'r', Nc_SRF, E_PAN, 'b', Nc_SRF, [E_ref for i in range(len(Nc_SRF))], 'g--')
   if args.type == 'sphere':
     title(args.type.upper())
   else:

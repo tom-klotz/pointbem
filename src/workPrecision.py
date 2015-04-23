@@ -25,10 +25,10 @@ def plot(args):
 
   doTotal = True
   if doTotal:
-    semilogx(Flops_SRF, abs(Err_SRF), Flops_PAN, abs(Err_PAN), FlopsS2S_SRF, abs(Err_SRF), FlopsS2S_PAN, abs(Err_PAN))
+    semilogx(Flops_SRF, abs(Err_SRF), 'r--', Flops_PAN, abs(Err_PAN), 'b--', FlopsS2S_SRF, abs(Err_SRF), 'r', FlopsS2S_PAN, abs(Err_PAN), 'b')
     legend(['SRF', 'PAN', 'SRF S2S', 'PAN S2S'], 'upper right', shadow = True)
   else:
-    semilogx(FlopsS2S_SRF, abs(Err_SRF), FlopsS2S_PAN, abs(Err_PAN))
+    semilogx(FlopsS2S_SRF, abs(Err_SRF), 'r', FlopsS2S_PAN, abs(Err_PAN), 'b')
     legend(['SRF S2S', 'PAN S2S'], 'upper right', shadow = True)
   if args.type == 'sphere':
     title(args.type.upper())
