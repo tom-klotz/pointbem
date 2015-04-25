@@ -4,3 +4,5 @@ testSrfOnSurfacePoints
 src/example.log
 src/example.log.bkp
 RDict.log
+geometry/*.srf
+geometry/surf*
