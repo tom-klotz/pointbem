@@ -361,6 +361,7 @@ PetscErrorCode makeSphereSurface(MPI_Comm comm, PetscReal origin[], PetscReal ra
   ierr = DMSetCoordinatesLocal(*dm, coordinates);CHKERRQ(ierr);
   ierr = VecDestroy(&coordinates);CHKERRQ(ierr);
   if (solidangle) *solidangle = angle;
+  else            {ierr = VecDestroy(&angle);CHKERRQ(ierr);}
   PetscFunctionReturn(0);
 }
 
