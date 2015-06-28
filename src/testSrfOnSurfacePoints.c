@@ -3,10 +3,10 @@
 #include "constants.h"
 #include "surface.h"
 
-typedef enum {BEM_POINT, BEM_PANEL} BEMType;
+typedef enum {BEM_POINT, BEM_PANEL, BEM_POINT_MF, BEM_PANEL_MF} BEMType;
 
 /* Performance characterization */
-PetscLogEvent CalcE_Event, CalcL_Event, CalcStoQ_Event, CalcStoS_Event, IntegratePanel_Event;
+PetscLogEvent CalcE_Event, CalcL_Event, CalcR_Event, CalcStoQ_Event, CalcStoS_Event, IntegratePanel_Event;
 
 typedef struct {
   Vec q;   /* Charge values */
@@ -78,6 +78,7 @@ PetscErrorCode ProcessOptions(MPI_Comm comm, SolvationContext *ctx)
   ierr = PetscLogEventRegister("CalcSurfToSurf",   DM_CLASSID, &CalcStoS_Event);CHKERRQ(ierr);
   ierr = PetscLogEventRegister("CalcSurfToCharge", DM_CLASSID, &CalcStoQ_Event);CHKERRQ(ierr);
   ierr = PetscLogEventRegister("CalcLMatrix",      DM_CLASSID, &CalcL_Event);CHKERRQ(ierr);
+  ierr = PetscLogEventRegister("CalcReactPot",     DM_CLASSID, &CalcR_Event);CHKERRQ(ierr);
   ierr = PetscLogEventRegister("CalcSolvEnergy",   DM_CLASSID, &CalcE_Event);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
@@ -1308,6 +1309,82 @@ PetscErrorCode makeBEMPcmQualMatrices(DM dm, BEMType bem, PetscReal epsIn, Petsc
 }
 
 #undef __FUNCT__
+#define __FUNCT__ "makeBEMPcmReactionPotential"
+/*@
+  makeBEMPcmReactionPotential - Make the reaction potential, phi_react = Lq = C A^{-1} Bq in the Polarizable Continuum Model
+
+  Input Parameters:
++ epsIn - the dielectric constant inside the protein
+. epsOut - the dielectric constant outside the protein
+. pqrData - the PQRData context
+. coordinates - The vertex coordinates
+. w - The vertex weights
+- n - The vertex normals
+
+  Output Parameters:
+. react - The reaction potential
+
+  Level: beginner
+
+.seealso: doAnalytical()
+@*/
+PetscErrorCode makeBEMPcmQualReactionPotential(DM dm, BEMType bem, PetscReal epsIn, PetscReal epsOut, PQRData *pqr, Vec coordinates, Vec w, Vec n, Vec react)
+{
+  const PetscReal epsHat = (epsIn + epsOut)/(epsIn - epsOut);
+  KSP             ksp;
+  PC              pc;
+  Mat             A, Bp, B, C, S, fact;
+  Vec             d, t0, t1;
+  PetscErrorCode  ierr;
+
+  PetscFunctionBeginUser;
+  switch (bem) {
+  case BEM_POINT_MF:
+    ierr = makeSurfaceToSurfacePointOperators_Laplace(coordinates, w, n, NULL, &A);CHKERRQ(ierr);
+    ierr = makeSurfaceToChargePointOperators(coordinates, w, n, pqr, NULL, &B, &C, NULL);CHKERRQ(ierr);
+    ierr = PetscLogEventBegin(CalcR_Event, 0, 0, 0, 0);CHKERRQ(ierr);
+    /* B = chargesurfop.dphidnCoul */
+    ierr = MatDiagonalScale(B, w, NULL);CHKERRQ(ierr);
+    ierr = MatScale(B, -1/epsIn);CHKERRQ(ierr);
+    break;
+  case BEM_PANEL_MF:
+    ierr = makeSurfaceToSurfacePanelOperators_Laplace(dm, w, NULL /*n*/, NULL, &A);CHKERRQ(ierr);
+    ierr = makeSurfaceToChargePanelOperators(dm, w, NULL /*n*/, pqr, NULL, NULL, &C, &Bp);CHKERRQ(ierr);
+    ierr = PetscLogEventBegin(CalcR_Event, 0, 0, 0, 0);CHKERRQ(ierr);
+    /* Bp = chargesurfop.dlpToCharges */
+    ierr = MatTranspose(Bp, MAT_INITIAL_MATRIX, &B);CHKERRQ(ierr);
+    ierr = MatDestroy(&Bp);CHKERRQ(ierr);
+    ierr = MatScale(B, -1/epsIn);CHKERRQ(ierr);
+    break;
+  default:
+    SETERRQ1(PETSC_COMM_SELF, PETSC_ERR_ARG_WRONG, "Invalid BEM type: %d", bem);
+  }
+  /* C = chargesurfop.slpToCharges */
+  ierr = MatScale(C, 4.0*PETSC_PI);CHKERRQ(ierr);
+  /* A = surfsurfop.K */
+  ierr = MatTranspose(A, MAT_REUSE_MATRIX, &A);CHKERRQ(ierr);
+  ierr = MatDiagonalScale(A, NULL, w);CHKERRQ(ierr);
+  ierr = VecDuplicate(w, &d);CHKERRQ(ierr);
+  ierr = VecCopy(w, d);CHKERRQ(ierr);
+  ierr = VecScale(d, epsHat/2.0);CHKERRQ(ierr);
+  ierr = MatDiagonalSet(A, d, ADD_VALUES);CHKERRQ(ierr);
+  ierr = VecDestroy(&d);CHKERRQ(ierr);
+
+  ierr = MatCreateVecs(B, NULL, &t0);CHKERRQ(ierr);
+  ierr = VecDuplicate(t0, &t1);CHKERRQ(ierr);
+  ierr = MatMult(B, pqr->q, t0);CHKERRQ(ierr);
+  ierr = KSPCreate(PetscObjectComm((PetscObject) A), &ksp);CHKERRQ(ierr);
+  ierr = KSPSetOperators(ksp, A, A);CHKERRQ(ierr);
+  ierr = KSPSetFromOptions(ksp);CHKERRQ(ierr);
+  ierr = KSPSolve(ksp, t0, t1);CHKERRQ(ierr);
+  ierr = MatMult(C, t1, react);CHKERRQ(ierr);
+  ierr = VecDestroy(&t0);CHKERRQ(ierr);
+  ierr = VecDestroy(&t1);CHKERRQ(ierr);
+  ierr = PetscLogEventEnd(CalcR_Event, 0, 0, 0, 0);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
 #define __FUNCT__ "CalculateAnalyticSolvationEnergy"
 /*@
   CalculateAnalyticSolvationEnergy - Calculate the solvation energy 1/2 q^T L q
@@ -1385,15 +1462,26 @@ PetscErrorCode CalculateBEMSolvationEnergy(DM dm, const char prefix[], BEMType b
   PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
   PetscValidPointer(pqr, 6);
   PetscValidPointer(E, 10);
-  ierr = DMGetCoordinatesLocal(dm, &coords);CHKERRQ(ierr);
-  ierr = makeBEMPcmQualMatrices(dm, bem, epsIn, epsOut, pqr, coords, w, n, &L);CHKERRQ(ierr);
-  ierr = PetscObjectSetName((PetscObject) L, "L");CHKERRQ(ierr);
-  ierr = PetscObjectSetOptionsPrefix((PetscObject) L, prefix);CHKERRQ(ierr);
-  ierr = MatViewFromOptions(L, NULL, "-mat_view");CHKERRQ(ierr);
+  switch (bem) {
+  case BEM_POINT:
+  case BEM_PANEL:
+    ierr = DMGetCoordinatesLocal(dm, &coords);CHKERRQ(ierr);
+    ierr = makeBEMPcmQualMatrices(dm, bem, epsIn, epsOut, pqr, coords, w, n, &L);CHKERRQ(ierr);
+    ierr = PetscObjectSetName((PetscObject) L, "L");CHKERRQ(ierr);
+    ierr = PetscObjectSetOptionsPrefix((PetscObject) L, prefix);CHKERRQ(ierr);
+    ierr = MatViewFromOptions(L, NULL, "-mat_view");CHKERRQ(ierr);
 
-  ierr = PetscLogEventBegin(CalcE_Event, L, react, pqr->q, 0);CHKERRQ(ierr);
-  ierr = MatMult(L, pqr->q, react);CHKERRQ(ierr);
-  ierr = MatDestroy(&L);CHKERRQ(ierr);
+    ierr = PetscLogEventBegin(CalcE_Event, L, react, pqr->q, 0);CHKERRQ(ierr);
+    ierr = MatMult(L, pqr->q, react);CHKERRQ(ierr);
+    ierr = MatDestroy(&L);CHKERRQ(ierr);
+    break;
+  case BEM_POINT_MF:
+  case BEM_PANEL_MF:
+    ierr = DMGetCoordinatesLocal(dm, &coords);CHKERRQ(ierr);
+    ierr = makeBEMPcmQualReactionPotential(dm, bem, epsIn, epsOut, pqr, coords, w, n, react);CHKERRQ(ierr);
+    ierr = PetscLogEventBegin(CalcE_Event, L, react, pqr->q, 0);CHKERRQ(ierr);
+    break;
+  }
   ierr = VecDot(pqr->q, react, E);CHKERRQ(ierr);
   *E  *= cf * 0.5;
   ierr = PetscLogEventEnd(CalcE_Event, L, react, pqr->q, 0);CHKERRQ(ierr);
@@ -1419,8 +1507,8 @@ int main(int argc, char **argv)
   PetscInt         Np;
   SolvationContext ctx;
   /* Solvation Energies */
-  PetscScalar      Eref = 0.0, ESimple = 0.0, ESurf = 0.0, EPanel = 0.0, EMSP = 0.0;
-  PetscLogStage    stageSimple, stageSurf, stagePanel, stageMSP;
+  PetscScalar      Eref = 0.0, ESimple = 0.0, ESurf = 0.0, ESurfMF = 0.0, EPanel = 0.0, EMSP = 0.0;
+  PetscLogStage    stageSimple, stageSurf, stageSurfMF, stagePanel, stageMSP;
   PetscErrorCode   ierr;
 
   ierr = PetscInitialize(&argc, &argv, NULL, NULL);CHKERRQ(ierr);
@@ -1453,9 +1541,13 @@ int main(int argc, char **argv)
   }
   /* Calculate solvation energy */
   ierr = PetscLogStageRegister("Point Surface", &stageSurf);CHKERRQ(ierr);
+  ierr = PetscLogStageRegister("Point Surface MF", &stageSurfMF);CHKERRQ(ierr);
   ierr = PetscLogStageRegister("Panel Surface", &stagePanel);CHKERRQ(ierr);
   ierr = PetscLogStagePush(stageSurf);CHKERRQ(ierr);
   ierr = CalculateBEMSolvationEnergy(dm, "lsrf_", BEM_POINT, ctx.epsIn, ctx.epsOut, &pqr, vertWeights, vertNormals, react, &ESurf);CHKERRQ(ierr);
+  ierr = PetscLogStagePop();CHKERRQ(ierr);
+  ierr = PetscLogStagePush(stageSurfMF);CHKERRQ(ierr);
+  ierr = CalculateBEMSolvationEnergy(dm, "lsrf_mf_", BEM_POINT_MF, ctx.epsIn, ctx.epsOut, &pqr, vertWeights, vertNormals, react, &ESurfMF);CHKERRQ(ierr);
   ierr = PetscLogStagePop();CHKERRQ(ierr);
   ierr = PetscLogStagePush(stagePanel);CHKERRQ(ierr);
   ierr = CalculateBEMSolvationEnergy(dm, "lpanel_", BEM_PANEL, ctx.epsIn, ctx.epsOut, &pqr, panelAreas, vertNormals, react, &EPanel);CHKERRQ(ierr);
@@ -1482,6 +1574,7 @@ int main(int argc, char **argv)
     ierr = PetscLogStagePop();CHKERRQ(ierr);
     ierr = CalculateAnalyticSolvationEnergy(ctx.epsIn, ctx.epsOut, &pqr, ctx.R, ctx.Nmax, react, &Eref);CHKERRQ(ierr);
     ierr = PetscPrintf(PETSC_COMM_WORLD, "Eref = %.6f ESurf   = %.6f Error = %.6f Rel. error = %.4f\n", Eref, ESurf,   Eref-ESurf,   (Eref-ESurf)/Eref);CHKERRQ(ierr);
+    ierr = PetscPrintf(PETSC_COMM_WORLD, "Eref = %.6f ESurfMF = %.6f Error = %.6f Rel. error = %.4f\n", Eref, ESurfMF, Eref-ESurfMF, (Eref-ESurfMF)/Eref);CHKERRQ(ierr);
     ierr = PetscPrintf(PETSC_COMM_WORLD, "Eref = %.6f ESimple = %.6f Error = %.6f Rel. error = %.4f\n", Eref, ESimple, Eref-ESimple, (Eref-ESimple)/Eref);CHKERRQ(ierr);
     ierr = PetscPrintf(PETSC_COMM_WORLD, "Eref = %.6f EPanel  = %.6f Error = %.6f Rel. error = %.4f\n", Eref, EPanel,  Eref-EPanel,  (Eref-EPanel)/Eref);CHKERRQ(ierr);
 
@@ -1501,6 +1594,10 @@ int main(int argc, char **argv)
     ierr = PetscLogGetStageLog(&stageLog);CHKERRQ(ierr);
     ierr = PetscPrintf(PETSC_COMM_WORLD, "Flops_Surf  = %.4e Flops_S2S_Surf  = %.4e\n",
                        stageLog->stageInfo[stageSurf].perfInfo.flops, stageLog->stageInfo[stageSurf].eventLog->eventInfo[CalcStoS_Event].flops);CHKERRQ(ierr);
+    if (ctx.isSphere) {
+      ierr = PetscPrintf(PETSC_COMM_WORLD, "Flops_SurfMF= %.4e Flops_S2S_Surf  = %.4e\n",
+                         stageLog->stageInfo[stageSurfMF].perfInfo.flops, stageLog->stageInfo[stageSurfMF].eventLog->eventInfo[CalcStoS_Event].flops);CHKERRQ(ierr);
+    }
     ierr = PetscPrintf(PETSC_COMM_WORLD, "Flops_Panel = %.4e Flops_S2S_Panel = %.4e\n",
                        stageLog->stageInfo[stagePanel].perfInfo.flops, stageLog->stageInfo[stagePanel].eventLog->eventInfo[CalcStoS_Event].flops);CHKERRQ(ierr);
     if (msp.weights) {ierr = PetscPrintf(PETSC_COMM_WORLD, "Flops_MSP   = %.4e Flops_S2S_MSP   = %.4e\n",
