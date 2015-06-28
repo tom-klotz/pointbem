@@ -209,9 +209,9 @@ PetscErrorCode PQRViewFromOptions(PQRData *pqr)
   PetscErrorCode ierr;
 
   PetscFunctionBeginUser;
-  ierr = VecViewFromOptions(pqr->xyz, "pqr_", "-vec_view");CHKERRQ(ierr);
-  ierr = VecViewFromOptions(pqr->q, "pqr_", "-vec_view");CHKERRQ(ierr);
-  ierr = VecViewFromOptions(pqr->R, "pqr_", "-vec_view");CHKERRQ(ierr);
+  ierr = VecViewFromOptions(pqr->xyz, NULL, "-pqr_vec_view");CHKERRQ(ierr);
+  ierr = VecViewFromOptions(pqr->q,   NULL, "-pqr_vec_view");CHKERRQ(ierr);
+  ierr = VecViewFromOptions(pqr->R,   NULL, "-pqr_vec_view");CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
