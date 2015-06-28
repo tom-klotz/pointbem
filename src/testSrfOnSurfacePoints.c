@@ -1309,6 +1309,30 @@ PetscErrorCode makeBEMPcmQualMatrices(DM dm, BEMType bem, PetscReal epsIn, Petsc
 }
 
 #undef __FUNCT__
+#define __FUNCT__ "ComputeBEMResidual"
+PetscErrorCode ComputeBEMResidual(SNES snes, Vec x, Vec r, void *ctx)
+{
+  Mat *A = (Mat *) ctx;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  ierr = MatMult(*A, x, r);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "ComputeBEMJacobian"
+PetscErrorCode ComputeBEMJacobian(SNES snes, Vec x, Mat J, Mat P, void *ctx)
+{
+  Mat *A = (Mat *) ctx;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  ierr = MatCopy(*A, P, SAME_NONZERO_PATTERN);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
 #define __FUNCT__ "makeBEMPcmReactionPotential"
 /*@
   makeBEMPcmReactionPotential - Make the reaction potential, phi_react = Lq = C A^{-1} Bq in the Polarizable Continuum Model
@@ -1331,10 +1355,10 @@ PetscErrorCode makeBEMPcmQualMatrices(DM dm, BEMType bem, PetscReal epsIn, Petsc
 PetscErrorCode makeBEMPcmQualReactionPotential(DM dm, BEMType bem, PetscReal epsIn, PetscReal epsOut, PQRData *pqr, Vec coordinates, Vec w, Vec n, Vec react)
 {
   const PetscReal epsHat = (epsIn + epsOut)/(epsIn - epsOut);
-  KSP             ksp;
+  SNES            snes;
   PC              pc;
-  Mat             A, Bp, B, C, S, fact;
-  Vec             d, t0, t1;
+  Mat             J, A, Bp, B, C, S, fact;
+  Vec             d, t0, t1, t2;
   PetscErrorCode  ierr;
 
   PetscFunctionBeginUser;
@@ -1373,13 +1397,30 @@ PetscErrorCode makeBEMPcmQualReactionPotential(DM dm, BEMType bem, PetscReal eps
   ierr = MatCreateVecs(B, NULL, &t0);CHKERRQ(ierr);
   ierr = VecDuplicate(t0, &t1);CHKERRQ(ierr);
   ierr = MatMult(B, pqr->q, t0);CHKERRQ(ierr);
-  ierr = KSPCreate(PetscObjectComm((PetscObject) A), &ksp);CHKERRQ(ierr);
-  ierr = KSPSetOperators(ksp, A, A);CHKERRQ(ierr);
-  ierr = KSPSetFromOptions(ksp);CHKERRQ(ierr);
-  ierr = KSPSolve(ksp, t0, t1);CHKERRQ(ierr);
+
+  /* Can do Picard by using the Jacobian that gets made, the rhs that is passed in, and NEWTONLS
+       F(x) = A x - b,   J(x) = A,   J dx = F(0)  ==>  A dx = -b,   x = 0 - dx
+
+       A(0) dx_1 = F(0) - b = A(0) 0 - b = -b
+         x_1 = 0 - dx_1 = 0 - (-p_1) = p_1
+       A(x_1) dx_2 = F(x_1) - b = A(x_1) x_1 - b  ==>  A(x_1) (dx_2 - x_1) = -b
+         dx_2 - x_1 = -p_2
+         x_2 = x_1 - dx_2 = x_1 - (-p_2 + x_1) = p_2
+  */
+
+  ierr = MatDuplicate(A, MAT_DO_NOT_COPY_VALUES, &J);CHKERRQ(ierr);
+  ierr = VecDuplicate(t0, &t2);CHKERRQ(ierr);
+  ierr = SNESCreate(PetscObjectComm((PetscObject) dm), &snes);CHKERRQ(ierr);
+  ierr = SNESSetFunction(snes, t2, ComputeBEMResidual, &A);CHKERRQ(ierr);
+  ierr = SNESSetJacobian(snes, J, J, ComputeBEMJacobian, &A);CHKERRQ(ierr);
+  ierr = SNESSetFromOptions(snes);CHKERRQ(ierr);
+  ierr = SNESSolve(snes, t0, t1);CHKERRQ(ierr);
+
   ierr = MatMult(C, t1, react);CHKERRQ(ierr);
   ierr = VecDestroy(&t0);CHKERRQ(ierr);
   ierr = VecDestroy(&t1);CHKERRQ(ierr);
+  ierr = VecDestroy(&t2);CHKERRQ(ierr);
+  ierr = MatDestroy(&J);CHKERRQ(ierr);
   ierr = PetscLogEventEnd(CalcR_Event, 0, 0, 0, 0);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
