@@ -2,8 +2,10 @@ SRF 3548 vertices 7092 cells
 Total area: 451.996 Sphere area: 452.389
 Simple 3624 vertices
 Eref = -83.592836 ESurf   = -84.490585 Error = 0.897749 Rel. error = -0.0107
+Eref = -83.592836 ESurfMF = -84.490585 Error = 0.897749 Rel. error = -0.0107
 Eref = -83.592836 ESimple = -84.515558 Error = 0.922721 Rel. error = -0.0110
 Eref = -83.592836 EPanel  = -83.672702 Error = 0.079866 Rel. error = -0.0010
 Flops_Surf  = 3.0305e+10 Flops_S2S_Surf  = 2.6435e+08
+Flops_SurfMF= 5.5585e+08 Flops_S2S_Surf  = 2.6435e+08
 Flops_Panel = 2.4888e+11 Flops_S2S_Panel = 1.0010e+10
 Flops_Simple = 3.2283e+10 Flops_S2S_Simple = 2.7580e+08
