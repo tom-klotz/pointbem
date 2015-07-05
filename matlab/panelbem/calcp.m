@@ -192,7 +192,7 @@ for evalindex = 1:numevals
     arg=(r(i)+r(next)-edgeLength(i))/(r(i)+r(next)+edgeLength(i));
     if(arg == 0)
       'in calcp'
-      keyboard;
+%      keyboard;
     end
     fln = -log(arg);
     if (arg>0.0) 
