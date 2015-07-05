@@ -1,4 +1,4 @@
-function L = doAnalytical(b, epsIn, epsOut, pqrData, Nmax)
+function [L,Bnm_exact] = doAnalytical(b, epsIn, epsOut, pqrData, Nmax)
 
 % b is the sphere radius, in Angstroms
 % pqrData contains an M-length vector q of charge values and an
