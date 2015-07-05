@@ -11,7 +11,7 @@ end
 thresholdDistance = 1e-6;
 thresholdWeight = 1e-4;
 eliminateList = ones(length(vertexWeights),1);
-keyboard
+
 for i=1:length(vertexWeights)
   if vertexWeights(i) < thresholdWeight
     eliminateList(i) = 0;
@@ -26,12 +26,14 @@ for i=1:length(vertexWeights)
     end
   end
 end
+
 meshData.vert = meshData.vert(find(eliminateList),:);
 vertexWeights = vertexWeights(find(eliminateList));
 meshData.normals = meshData.normals(find(eliminateList),:);
 surfdata = struct('points',meshData.vert,'weights',vertexWeights, ...
 		  'anglecoords', 0,'normals',meshData.normals);
 
+fprintf('loadSrfIntoSurfacePoints: %f original area, %f new area\n',sum(panelAreas),sum(vertexWeights));
 % to plot: 
 % v = meshData.vert;
 % n = meshData.normals;
