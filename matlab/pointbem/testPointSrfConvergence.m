@@ -4,7 +4,7 @@ origin = [0 0 0];
 R      = 6.0;
 epsIn  =  4;
 epsOut = 80;
-numCharges = 10;
+numCharges = 20;
 conv_factor = 332.112;
 
 h       = 0.5;
@@ -22,7 +22,7 @@ for densityIndex = 1:length(density)
     ESRF(densityIndex) = conv_factor * 0.5 * pqrdata.q' * LSRF * pqrdata.q;
   end
   
-  if 1 
+  if 1
     scaleFactor = (4 * pi * R^2)/sum(actualSRFdata.weights);
     newSRFdata = actualSRFdata;
     newSRFdata.weights = scaleFactor * actualSRFdata.weights;
