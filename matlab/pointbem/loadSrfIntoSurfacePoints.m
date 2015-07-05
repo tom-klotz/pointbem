@@ -1,7 +1,7 @@
 function surfdata = loadSrfIntoSurfacePoints(srf)
 
 [meshBase,rootDir] = readsrf(srf);
-meshData = readmesh(meshBase,1,0);
+meshData = readmesh(meshBase,1,1);
 [panelCentroids,panelNormals,panelAreas] = genmeshcolloc(meshData);
 
 vertexWeights = zeros(size(meshData.vert,1),1);
