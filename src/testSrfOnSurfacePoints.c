@@ -175,7 +175,6 @@ PetscErrorCode PQRCreateFromPDB(MPI_Comm comm, const char pdbFile[], const char 
       /* The CRG file is required to have the same nubmer of atoms in the same order as the PDB */
       ierr = VecGetArray(pqr->q, &q);CHKERRQ(ierr);
       for (i = -1; i < n; ++i) {
-        PetscReal charge;
         double    tmp;
         PetscInt  c = 0;
 
@@ -359,13 +358,12 @@ PetscErrorCode legendre(PetscInt l, PetscInt m, PetscScalar x, PetscScalar *leg,
 */
 PetscErrorCode legendre2(PetscInt l, PetscInt nz, PetscScalar z, PetscScalar leg[])
 {
-  PetscReal      sqz2   = PetscSqrtReal(1.0 - PetscSqr(PetscRealPart(z)));
-  PetscReal      hsqz2  = 0.5*sqz2;
-  PetscReal      ihsqz2 = PetscRealPart(z)/hsqz2;
-  PetscReal      fac    = 1.0;
-  PetscInt       pre    = l % 2 ? -1 : 1;
-  PetscInt       m;
-  PetscErrorCode ierr;
+  PetscReal sqz2   = PetscSqrtReal(1.0 - PetscSqr(PetscRealPart(z)));
+  PetscReal hsqz2  = 0.5*sqz2;
+  PetscReal ihsqz2 = PetscRealPart(z)/hsqz2;
+  PetscReal fac    = 1.0;
+  PetscInt  pre    = l % 2 ? -1 : 1;
+  PetscInt  m;
 
   PetscFunctionBeginUser;
   for (m = 2; m <= l; ++m) fac *= m;
@@ -572,7 +570,9 @@ PetscErrorCode computeEnm(PetscReal b, PetscReal epsIn, PQRData *pqr, Vec qVec, 
 @*/
 PetscErrorCode computeBnm(PetscReal b, PetscReal epsIn, PetscReal epsOut, PetscInt Nmax, Vec Enm, Vec Bnm)
 {
+#if 0
   PetscReal      epsHat = 2.0*(epsIn - epsOut)/(epsIn + epsOut);
+#endif
   PetscScalar   *bnm;
   PetscInt       n, m, idx;
   PetscErrorCode ierr;
@@ -927,7 +927,7 @@ PetscErrorCode makeSurfaceToSurfacePanelOperators_Laplace(DM dm, Vec w, Vec n, M
   Vec             coordinates;
   PetscSection    coordSection;
   PetscInt        Np;
-  PetscInt        i, j, d;
+  PetscInt        i, j;
   PetscErrorCode  ierr;
 
   PetscFunctionBeginUser;
@@ -1017,7 +1017,7 @@ PetscErrorCode makeSurfaceToChargePanelOperators(DM dm, Vec w, Vec n, PQRData *p
   PetscSection       coordSection;
   const PetscScalar *xyz;
   PetscInt           Nq, Np;
-  PetscInt           i, j, d;
+  PetscInt           i, j;
   PetscErrorCode     ierr;
 
   PetscFunctionBeginUser;
@@ -1333,9 +1333,9 @@ PetscErrorCode ComputeBEMJacobian(SNES snes, Vec x, Mat J, Mat P, void *ctx)
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "makeBEMPcmReactionPotential"
+#define __FUNCT__ "makeBEMPcmQualReactionPotential"
 /*@
-  makeBEMPcmReactionPotential - Make the reaction potential, phi_react = Lq = C A^{-1} Bq in the Polarizable Continuum Model
+  makeBEMPcmQualReactionPotential - Make the reaction potential, phi_react = Lq = C A^{-1} Bq in the Polarizable Continuum Model
 
   Input Parameters:
 + epsIn - the dielectric constant inside the protein
@@ -1356,7 +1356,6 @@ PetscErrorCode makeBEMPcmQualReactionPotential(DM dm, BEMType bem, PetscReal eps
 {
   const PetscReal epsHat = (epsIn + epsOut)/(epsIn - epsOut);
   SNES            snes;
-  PC              pc;
   Mat             J, A, Bp, B, C, S, fact;
   Vec             d, t0, t1, t2;
   PetscErrorCode  ierr;
@@ -1415,12 +1414,16 @@ PetscErrorCode makeBEMPcmQualReactionPotential(DM dm, BEMType bem, PetscReal eps
   ierr = SNESSetJacobian(snes, J, J, ComputeBEMJacobian, &A);CHKERRQ(ierr);
   ierr = SNESSetFromOptions(snes);CHKERRQ(ierr);
   ierr = SNESSolve(snes, t0, t1);CHKERRQ(ierr);
+  ierr = SNESDestroy(&snes);CHKERRQ(ierr);
 
   ierr = MatMult(C, t1, react);CHKERRQ(ierr);
   ierr = VecDestroy(&t0);CHKERRQ(ierr);
   ierr = VecDestroy(&t1);CHKERRQ(ierr);
   ierr = VecDestroy(&t2);CHKERRQ(ierr);
   ierr = MatDestroy(&J);CHKERRQ(ierr);
+  ierr = MatDestroy(&A);CHKERRQ(ierr);
+  ierr = MatDestroy(&B);CHKERRQ(ierr);
+  ierr = MatDestroy(&C);CHKERRQ(ierr);
   ierr = PetscLogEventEnd(CalcR_Event, 0, 0, 0, 0);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
