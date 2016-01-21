@@ -403,7 +403,7 @@ PetscErrorCode makeSphereChargeDistribution(PetscReal R, PetscInt numCharges, Pe
     PetscInt  nmax = 8, i;
     PetscBool flg;
 
-    ierr = PetscOptionsGetRealArray(NULL, "-test", vals, &nmax, &flg);CHKERRQ(ierr);
+    ierr = PetscOptionsGetRealArray(NULL, NULL, "-test", vals, &nmax, &flg);CHKERRQ(ierr);
     if (flg) {
       numCharges = nmax/4;
       ierr = VecCreate(PETSC_COMM_WORLD, &data->q);CHKERRQ(ierr);
@@ -1553,7 +1553,7 @@ int main(int argc, char **argv)
   PetscErrorCode   ierr;
 
   ierr = PetscInitialize(&argc, &argv, NULL, NULL);CHKERRQ(ierr);
-  ierr = PetscLogBegin();CHKERRQ(ierr);
+  ierr = PetscLogDefaultBegin();CHKERRQ(ierr);
   ierr = ProcessOptions(PETSC_COMM_WORLD, &ctx);CHKERRQ(ierr);
   /* Make PQR */
   if (ctx.isSphere) {
