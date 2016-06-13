@@ -1,0 +1,4 @@
+install: true
+script:
+  - cd src
+  - make
