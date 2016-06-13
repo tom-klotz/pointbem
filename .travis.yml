@@ -1,7 +1,7 @@
 install:
   - git clone https://tomklotz@bitbucket.org/petsc/petsc.git
   - cd petsc
-  - ./configure --with-cc=gcc --with-cxx=g++ --with-fc=gfortran --download-fblaslapack --download-mpich
+  - ./configure --with-cc=gcc --with-cxx=0 --with-fc=0 --download-f2cblaslapack --download-mpich
   - make all
 script:
   - cd src
