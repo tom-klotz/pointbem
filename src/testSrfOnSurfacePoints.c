@@ -57,7 +57,7 @@ PetscErrorCode ProcessOptions(MPI_Comm comm, SolvationContext *ctx)
   ctx->Nmax       = 100;
   ctx->density    = 1.0;
 
-  ierr = PetscStrcpy(ctx->basename, "../../jay-pointbem/geometry/sphere_R6_vdens");CHKERRQ(ierr);
+  ierr = PetscStrcpy(ctx->basename, "../matlab/pointbem/geometry/sphere_R6_vdens");CHKERRQ(ierr);
   ierr = PetscOptionsBegin(comm, "", "Solvation Problem Options", "BIBEE");CHKERRQ(ierr);
     ierr = PetscOptionsReal("-epsilon_solute", "The dielectric coefficient of the solute", "testSrfOnSurfacePoints", ctx->epsIn, &ctx->epsIn, NULL);CHKERRQ(ierr);
     ierr = PetscOptionsReal("-epsilon_solvent", "The dielectric coefficient of the solvent", "testSrfOnSurfacePoints", ctx->epsOut, &ctx->epsOut, NULL);CHKERRQ(ierr);
