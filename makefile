@@ -1,5 +1,3 @@
-MSMS_PATH = /PETSc3/biology/msms/msms
-
 meshmaker:
 	-@mkdir bin
 	cd src/meshmaker; ${MAKE}
