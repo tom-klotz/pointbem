@@ -12,7 +12,21 @@ make figures
 
 ### Building Code ###
 
-You must first [Install PETSc](http://www.mcs.anl.gov/petsc/documentation/installation.html). Then the executable (testSrfOnSurfacePoints) can be built using
+You must first [Install PETSc](http://www.mcs.anl.gov/petsc/documentation/installation.html).
+Next, install MSMS (http://mgltools.scripps.edu/packages/MSMS).
+Then, set your msms path to the msms executable via:
+'''
+export MSMS_PATH=/your_msms_path/msms_executable
+'''
+
+To make the srf files used in the examples, run (in the root folder)
+'''
+%!bash
+
+make srf
+'''
+
+Then the executable (testSrfOnSurfacePoints) can be built using
 ```
 #!bash
 
