@@ -2,9 +2,9 @@ install:
   - git clone https://tomklotz@bitbucket.org/petsc/petsc.git
   - cd petsc
   - ./configure --with-cc=gcc --with-cxx=0 --with-fc=0 --download-f2cblaslapack --download-mpich
-  - $TRAVIS_BUILD_DIR
   - export PETSC_DIR=$TRAVIS_BUILD_DIR/petsc
+  - export PETSC_ARCH=arch-linux2-c-debug
   - make all
 script:
-  - cd src
+  - cd $TRAVIS_BUILD_DIR/src
   - make
