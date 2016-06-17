@@ -2,7 +2,8 @@ install:
   - git clone https://tomklotz@bitbucket.org/petsc/petsc.git
   - cd petsc
   - ./configure --with-cc=gcc --with-cxx=0 --with-fc=0 --download-f2cblaslapack --download-mpich
-  - export PETSC_DIR=/home/travis/build/tom-klotz/pointbem/petsc
+  - $TRAVIS_BUILD_DIR
+  - export PETSC_DIR=$TRAVIS_BUILD_DIR/petsc
   - make all
 script:
   - cd src
