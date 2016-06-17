@@ -5,6 +5,10 @@ install:
   - export PETSC_DIR=$TRAVIS_BUILD_DIR/petsc
   - export PETSC_ARCH=arch-linux2-c-debug
   - make all
+  - cd $TRAVID_BUILD_DIR
+  - wget http://mgltools.scripps.edu/downloads/tars/releases/MSMSRELEASE/REL2.6.1/msms_i86_64Linux2_2.6.1.tar.gz -O msmsdir.tar.gz
+  - tar -xvf msmsdir.tar.gz
+  - export MSMS_DIR=$TRAVIS_BUILD_DIR/msmsdir/msms
 script:
   - cd $TRAVIS_BUILD_DIR/src
   - make
