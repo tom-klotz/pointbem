@@ -1,4 +1,4 @@
-regressionParameters = {'../../biology/pointbem-petsc/src/testSrfOnSurfacePoints':
+regressionParameters = {'../../biology/pointbem/src/testSrfOnSurfacePoints':
                             [# Sphere tests [sphere_0-sphere_10]
                              {'num': 'sphere_0',  'numProcs': 1, 'args': '-srf_base ../geometry/sphere_R6_vdens0 -num_charges 10 -nmax 25 -srf_num 0125 -density 0.125 -ksp_rtol 1.0e-10 -snes_linesearch_type basic -snes_type ksponly'},
                              {'num': 'sphere_1',  'numProcs': 1, 'args': '-srf_base ../geometry/sphere_R6_vdens0 -num_charges 10 -nmax 25 -srf_num 025 -density 0.25 -ksp_rtol 1.0e-10 -snes_linesearch_type basic -snes_type ksponly'},
