@@ -945,7 +945,7 @@ PetscErrorCode makeSurfaceToSurfacePanelOperators_Laplace(DM dm, Vec w, Vec n, M
     ierr = DMPlexGetConeSize(dm, i, &numCorners);CHKERRQ(ierr);
     ierr = DMPlexVecGetClosure(dm, coordSection, coordinates, i, &coordSize, &coords);CHKERRQ(ierr);
     for (d = 0; d < 3; ++d) v0[d] = coords[d];
-    ierr = DMPlexComputeProjection3Dto2D_Internal(coordSize, coords, R);CHKERRQ(ierr); /* 28 + 36 + 27 = 91 flops */
+    ierr = DMPlexComputeProjection3Dto2D(coordSize, coords, R);CHKERRQ(ierr); /* 28 + 36 + 27 = 91 flops */
     for (d = 0; d < numCorners; ++d) {
       panel[d*3+0] = PetscRealPart(coords[d*2+0]);
       panel[d*3+1] = PetscRealPart(coords[d*2+1]);
@@ -1040,7 +1040,7 @@ PetscErrorCode makeSurfaceToChargePanelOperators(DM dm, Vec w, Vec n, PQRData *p
     ierr = DMPlexGetConeSize(dm, i, &numCorners);CHKERRQ(ierr);
     ierr = DMPlexVecGetClosure(dm, coordSection, coordinates, i, &coordSize, &coords);CHKERRQ(ierr);
     for (d = 0; d < 3; ++d) v0[d] = coords[d];
-    ierr = DMPlexComputeProjection3Dto2D_Internal(coordSize, coords, R);CHKERRQ(ierr); /* 28 + 36 + 27 = 91 flops */
+    ierr = DMPlexComputeProjection3Dto2D(coordSize, coords, R);CHKERRQ(ierr); /* 28 + 36 + 27 = 91 flops */
     for (d = 0; d < numCorners; ++d) {
       panel[d*3+0] = PetscRealPart(coords[d*2+0]);
       panel[d*3+1] = PetscRealPart(coords[d*2+1]);
