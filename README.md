@@ -5,8 +5,6 @@ This repository contains the code used to produce the results in "Work/Precision
 ### Creating Figures ###
 
 ```
-#!bash
-
 make figures
 ```
 
@@ -21,20 +19,19 @@ export MSMS_PATH=/your_msms_path/msms_executable
 
 To make the srf files used in the examples, run (in the root folder)
 ```
+make meshmaker
 make srf
 ```
 
 Then the executable (testSrfOnSurfacePoints) can be built using
 ```
-#!bash
-
+cd src
 make
 ```
 
 ### Running Regression ###
 
 ```
-#!bash
-
+cd src
 make regression
 ```
