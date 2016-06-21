@@ -6,6 +6,6 @@ Eref = -83.592836 ESurfMF = -84.841682 Error = 1.248846 Rel. error = -0.0149
 Eref = -83.592836 ESimple = -84.903155 Error = 1.310318 Rel. error = -0.0157
 Eref = -83.592836 EPanel  = -83.754309 Error = 0.161473 Rel. error = -0.0019
 Flops_Surf  = 3.6644e+09 Flops_S2S_Surf  = 6.3872e+07
-Flops_SurfMF= 1.4697e+08 Flops_S2S_Surf  = 6.3872e+07
+Flops_SurfMF= 1.4088e+08 Flops_S2S_Surf  = 6.3872e+07
 Flops_Panel = 3.0871e+10 Flops_S2S_Panel = 2.4158e+09
 Flops_Simple = 4.1045e+09 Flops_S2S_Simple = 6.8950e+07
