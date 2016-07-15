@@ -31,6 +31,12 @@ make
 
 ### Running Regression ###
 
+To run the regression, first set the relative path from your petsc directory to the pointbem directory via:
+```
+export PETSC_TO_MSMS=../path-to-msms/your-msms-folder
+```
+
+Then the regression can be run using
 ```
 cd src
 make regression
