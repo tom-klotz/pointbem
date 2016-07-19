@@ -15,6 +15,24 @@ typedef struct {
 } PQRData;
 
 typedef struct {
+  PetscReal alpha;
+  PetscReal beta;
+  PetscReal gamma;
+  PetscReal mu;
+} HContext;
+
+typedef struct {
+  PQRData   *pqr;
+  PetscReal epsIn;
+  PetscReal epsOut;
+  Mat*      B;
+  Mat*      K;
+  Vec*      Bq;
+  Vec*      w;
+  HContext* hctx;
+} NonlinearContext;
+
+typedef struct {
   /* Physical parameters */
   PetscReal epsIn;      /* solute dielectric coefficient */
   PetscReal epsOut;     /* solvent dielectric coefficient */
@@ -1333,6 +1351,147 @@ PetscErrorCode ComputeBEMJacobian(SNES snes, Vec x, Mat J, Mat P, void *ctx)
 }
 
 #undef __FUNCT__
+#define __FUNCT__ "nonlinearH"
+/*@
+  nonlinearH - the function h(En) defining the nonlinearity
+  alpha*tanh(beta*En - gamma) + mu
+
+  Input Parameters:
++ E - vector containing values of En
+- ctx - context containing parameters alpha, beta, gamma, mu
+
+  Output Parameters:
+. h - vector containing values of h(En)
+
+  Level: beginner
+
+.seealso: makeBEMPcmQualReactionPotential
+@*/
+PetscErrorCode nonlinearH(Vec E, HContext *ctx, Vec h)
+{
+  PetscInt length;
+  PetscReal alpha, beta, gamma, mu;
+  PetscErrorCode ierr;
+
+  PetscFunctionBeginUser;
+  alpha = ctx->alpha;
+  beta  = ctx->beta;
+  gamma = ctx->gamma;
+  mu    = ctx->mu;
+  ierr = VecGetSize(E, &length);
+  ierr = VecDuplicate(E, &h);
+  
+  PetscInt i;
+  PetscReal val;
+  for(i=0; i<length; ++i) {
+    ierr = VecGetValues(E, 1, i, &val);
+    val = alpha*PetscTanhReal(beta*val - gamma) + mu;
+    VecSetValue(h, i, val, INSERT_VALUES);
+  }
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "FormASCNonlinearMatrix"
+/*@
+  FormASCNonlinearMatrix - forms the left hand matrix for the ASC nonlinear BIE
+  
+
+@*/
+PetscErrorCode FormASCNonlinearMatrix(Vec sigma, Mat *A, NonlinearContext *ctx)
+{
+  PetscReal epsOut, epsIn, epsHat;
+  PetscInt  dim;
+  Mat*      B;
+  Mat*      K;
+  Vec*      Bq;
+  Vec*      w;
+  Vec*      q;
+  Vec       En;
+  Vec       hEn;
+  Vec       v1, v2, v3;
+  Vec       d;
+  PetscErrorCode ierr;
+
+  PetscFunctionBeginUser;
+  epsOut = ctx->epsOut;
+  epsIn  = ctx->epsIn;
+  B      = ctx->B;
+  K      = ctx->K;
+  Bq     = ctx->Bq;
+  w      = ctx->w;
+  q      = &(ctx->pqr->q);
+  epsHat = (epsOut - epsIn)/epsOut;
+
+  //get the dimension of sigma
+  ierr = VecGetLocalSize(sigma, &dim);
+  //initialize A matrix
+  if(A) {ierr = MatCreateSeqDense(PETSC_COMM_SELF, dim, dim, NULL, A);CHKERRQ(ierr);}
+  //A = I + epsHat*(K - (1/2)*I)
+  ierr = MatCopy(*K, *A, DIFFERENT_NONZERO_PATTERN);
+  ierr = MatShift(*A, -0.5);
+  ierr = MatScale(*A, epsHat);
+  ierr = MatShift(*A, 1.0);
+
+  /* Use sigma to solve for En. En = rhs - K*sigma */
+  //Calculate En = -B*q - K*sigma
+  ierr = VecDuplicate(sigma, &v1);
+  ierr = VecDuplicate(*w   , &v2);
+  ierr = VecDuplicate(*w   , &v3);
+  ierr = VecPointwiseMult(v3, *w, sigma);
+  ierr = MatMult(*K, v3, v1);
+  ierr = VecPointwiseMult(v3, *w, *q);
+  ierr = MatMult(*B, v3, v2);
+  ierr = VecAXPY(v1, 1.0, v2);
+  ierr = VecScale(v1, -1.0);
+  ierr = VecDuplicate(v1, &En);
+  ierr = VecCopy(v1, En);
+
+  //compute h(En)
+  ierr = VecDuplicate(En, &hEn);
+  ierr = nonlinearH(En, ctx->hctx, hEn);
+
+  //Scale columns by entries of w
+  ierr = MatDiagonalScale(*A, NULL, *(ctx->w));
+
+  ierr = VecDuplicate(*(ctx->w), &d);CHKERRQ(ierr);
+  ierr = VecCopy(*(ctx->w), d);CHKERRQ(ierr);
+  ierr = VecScale(d, epsHat/2.0);CHKERRQ(ierr);
+  ierr = MatDiagonalSet(*A, d, ADD_VALUES);CHKERRQ(ierr);
+  ierr = VecDestroy(&d);CHKERRQ(ierr);
+  
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "NonlinearPicard"
+/*@
+  NonlinearPicard - uses a picard iteration to solve for the charge layer sigma.
+  
+  Input Parameters:
+  + A - Left Hand Side
+  . B - BIE right side matrix
+  . q - charges
+  . epsHat
+  - s - initial guess for sigma
+
+  Output Parameters:
+  . sigma - calculated value of sigma
+
+  Level: intermediate
+
+.seealso: makeBEMPcmQualReactionPotential
+@*/
+PetscErrorCode NonlinearPicard(Mat K, Mat B, Vec q, Vec s, Vec *sigma)
+{
+  PetscErrorCode ierr;
+  PetscFunctionBeginUser;
+  
+  ierr = VecSetValue(*sigma, 0, 1.0, INSERT_VALUES);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
 #define __FUNCT__ "makeBEMPcmQualReactionPotential"
 /*@
   makeBEMPcmQualReactionPotential - Make the reaction potential, phi_react = Lq = C A^{-1} Bq in the Polarizable Continuum Model
@@ -1396,7 +1555,7 @@ PetscErrorCode makeBEMPcmQualReactionPotential(DM dm, BEMType bem, PetscReal eps
   ierr = MatCreateVecs(B, NULL, &t0);CHKERRQ(ierr);
   ierr = VecDuplicate(t0, &t1);CHKERRQ(ierr);
   ierr = MatMult(B, pqr->q, t0);CHKERRQ(ierr);
-
+  
   /* Can do Picard by using the Jacobian that gets made, the rhs that is passed in, and NEWTONLS
        F(x) = A x - b,   J(x) = A,   J dx = F(0)  ==>  A dx = -b,   x = 0 - dx
 
