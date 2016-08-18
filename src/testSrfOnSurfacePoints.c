@@ -18,7 +18,6 @@ typedef struct {
   PetscReal alpha;
   PetscReal beta;
   PetscReal gamma;
-  PetscReal mu;
 } HContext;
 
 typedef struct {
@@ -1367,7 +1366,7 @@ PetscErrorCode ComputeBEMJacobian(SNES snes, Vec x, Mat J, Mat P, void *ctx)
 
 .seealso: makeBEMPcmQualReactionPotential
 @*/
-PetscErrorCode nonlinearH(Vec E, HContext *ctx, Vec h)
+PetscErrorCode nonlinearH(Vec E, HContext *ctx, Vec *hEn)
 {
   PetscInt length;
   PetscReal alpha, beta, gamma, mu;
@@ -1377,17 +1376,19 @@ PetscErrorCode nonlinearH(Vec E, HContext *ctx, Vec h)
   alpha = ctx->alpha;
   beta  = ctx->beta;
   gamma = ctx->gamma;
-  mu    = ctx->mu;
-  ierr = VecGetSize(E, &length);
-  ierr = VecDuplicate(E, &h);
+  mu    = -alpha*PetscTanhReal(-gamma);
+  ierr = VecGetSize(E, &length); CHKERRQ(ierr);
+  //ierr = VecDuplicate(E, &h); CHKERRQ(ierr);
   
   PetscInt i;
   PetscReal val;
   for(i=0; i<length; ++i) {
-    ierr = VecGetValues(E, 1, &i, &val);
+    ierr = VecGetValues(E, 1, &i, &val); CHKERRQ(ierr);
     val = alpha*PetscTanhReal(beta*val - gamma) + mu;
-    VecSetValue(h, i, val, INSERT_VALUES);
+    ierr = VecSetValue(*hEn, i, val, INSERT_VALUES); CHKERRQ(ierr);
   }
+  ierr = VecAssemblyBegin(*hEn); CHKERRQ(ierr);
+  ierr = VecAssemblyEnd(*hEn); CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -1402,18 +1403,18 @@ PetscErrorCode ASCBq(Vec sigma, Vec *Bq, NonlinearContext *ctx)
 {
   PetscReal epsOut, epsIn, epsHat;
   Mat*      B;
-  Vec*      q;
   PetscErrorCode ierr;
 
   PetscFunctionBeginUser;
   epsOut = ctx->epsOut;
   epsIn  = ctx->epsIn;
   epsHat = (epsOut - epsIn)/epsOut;
+
   B = ctx->B;
-  q = &(ctx->pqr->q);
 
   ierr = MatMult(*B, ctx->pqr->q, *Bq); CHKERRQ(ierr);
   ierr = VecScale(*Bq, -epsHat); CHKERRQ(ierr);
+  //ierr = VecView(ctx->pqr->q, PETSC_VIEWER_STDOUT_SELF);
   PetscFunctionReturn(0);
 }
 
@@ -1450,6 +1451,14 @@ PetscErrorCode FormASCNonlinearMatrix(Vec sigma, Mat *A, NonlinearContext *ctx)
 
   //get the dimension of sigma
   ierr = VecGetLocalSize(sigma, &dim); CHKERRQ(ierr);
+  //initialize dense A matrix
+  if(A) {ierr = MatCreateSeqDense(PETSC_COMM_SELF, dim, dim, NULL, A);CHKERRQ(ierr);}
+
+
+  //FOR TESTING
+  //ierr = MatZeroEntries(*K); CHKERRQ(ierr);
+  //ierr = MatShift(*K, 1.0);
+
   //initialize A matrix
   //if(A) {ierr = MatCreateSeqDense(PETSC_COMM_SELF, dim, dim, NULL, A);CHKERRQ(ierr);}
   //A = I + epsHat*(K - (1/2)*I)
@@ -1462,15 +1471,13 @@ PetscErrorCode FormASCNonlinearMatrix(Vec sigma, Mat *A, NonlinearContext *ctx)
   //Calculate En = -B*q - K*sigma
   ierr = VecDuplicate(sigma, &v1); CHKERRQ(ierr);
   ierr = VecDuplicate(*w   , &v2); CHKERRQ(ierr);
-  ierr = VecDuplicate(*w   , &v3); CHKERRQ(ierr);
+  ierr = MatCreateVecs(*B, NULL, &v3); CHKERRQ(ierr);
+
+  ierr = VecPointwiseMult(v3, sigma, *w); CHKERRQ(ierr);
   ierr = MatMult(*K, v3, v1); CHKERRQ(ierr);
-  PetscInt sizeq, sizew, bdim1, bdim2, adim1, adim2;
-  ierr = VecGetSize(*q, &sizeq); CHKERRQ(ierr);
-  ierr = VecGetSize(*w, &sizew); CHKERRQ(ierr);
-  ierr = MatGetSize(*A, &adim1, &adim2);
-  ierr = MatGetSize(*B, &bdim1, &bdim2);
-  //ierr = MatCreateVecs(*B, NULL, &v2);
+
   ierr = MatMult(*B, *q, v2); CHKERRQ(ierr);
+  //ierr = VecPointwiseMult(v2, v3, *w); CHKERRQ(ierr);
   ierr = VecAXPY(v1, 1.0, v2); CHKERRQ(ierr);
   ierr = VecScale(v1, -1.0); CHKERRQ(ierr);
   ierr = VecDuplicate(v1, &En); CHKERRQ(ierr);
@@ -1478,13 +1485,21 @@ PetscErrorCode FormASCNonlinearMatrix(Vec sigma, Mat *A, NonlinearContext *ctx)
 
   //compute h(En)
   ierr = VecDuplicate(En, &hEn); CHKERRQ(ierr);
-  ierr = nonlinearH(En, ctx->hctx, hEn); CHKERRQ(ierr);
- 
+  ierr = nonlinearH(En, ctx->hctx, &hEn); CHKERRQ(ierr);
+  //printf("hEn:\n");
+  //ierr = VecView(hEn, PETSC_VIEWER_STDOUT_SELF);
+  
   //add h(En) to A
   ierr = MatDiagonalSet(*A, hEn, ADD_VALUES); CHKERRQ(ierr);
+  
+  printf("val should be %15.15f\n", 1+epsHat/2.);
+  ierr = MatView(*A, PETSC_VIEWER_STDOUT_SELF); CHKERRQ(ierr);
 
   //Scale columns by entries of w
   ierr = MatDiagonalScale(*A, NULL, *(ctx->w)); CHKERRQ(ierr);
+
+
+  if(A) {ierr = MatAssemblyBegin(*A, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);ierr = MatAssemblyEnd(*A, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);}
 
   PetscFunctionReturn(0);
 }
@@ -1513,6 +1528,7 @@ PetscErrorCode NonlinearPicard(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscErr
   PetscInt dim;
   Mat A;
   Vec b;
+  Vec errvec;
   KSP ksp;
   PetscFunctionBegin;
 
@@ -1529,19 +1545,35 @@ PetscErrorCode NonlinearPicard(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscErr
   
   //create linear solver context
   ierr = KSPCreate(PETSC_COMM_WORLD, &ksp); CHKERRQ(ierr);
-
-  PetscReal err = 1;
-  for(int iter=1; iter<=3; ++iter)
+  
+  //initialize errvec for error calc
+  ierr = VecDuplicate(guess, &errvec);
+  ierr = VecSet(errvec, -1.2);
+  printf("WOOOOW:\n");
+  ierr = VecView(errvec, PETSC_VIEWER_STDOUT_SELF);
+  PetscReal err = 1; 
+  for(int iter=1; iter<=10; ++iter)
   {
-    ierr = lhs(*sol, &A, ctx); CHKERRQ(ierr);
-    ierr = rhs(*sol, &b, ctx); CHKERRQ(ierr);
-    
+    printf("\n\nITERATION NUMBER %d\n", iter);
+    ierr = (*lhs)(*sol, &A, ctx); CHKERRQ(ierr);
+    ierr = (*rhs)(*sol, &b, ctx); CHKERRQ(ierr);
+    //ierr = MatView(A, PETSC_VIEWER_STDOUT_SELF);
     ierr = KSPSetOperators(ksp, A, A); CHKERRQ(ierr);
-    ierr = KSPSetTolerances(ksp,1.e-2, 1e-8, PETSC_DEFAULT, PETSC_DEFAULT); CHKERRQ(ierr);
+    ierr = KSPSetTolerances(ksp, PETSC_DEFAULT, PETSC_DEFAULT, PETSC_DEFAULT, PETSC_DEFAULT); CHKERRQ(ierr);
     ierr = KSPSetFromOptions(ksp); CHKERRQ(ierr);
-    ierr = KSPSolve(ksp, b, *sol); CHKERRQ(ierr);
-    
+    //copy current iteration value to prev
+    ierr = VecCopy(*sol, errvec); CHKERRQ(ierr);
 
+    //solve system
+    ierr = KSPSolve(ksp, b, *sol); CHKERRQ(ierr);
+
+    //calculate current error, will be inaccurate on first iteration
+    ierr = VecAXPY(errvec, -1.0, *sol); CHKERRQ(ierr);
+    ierr = VecNorm(errvec, NORM_2, &err); CHKERRQ(ierr);
+    
+    printf("THE ERROR IS: %15.15f\n", err);
+    printf("sol:\n");
+    ierr = VecView(*sol, PETSC_VIEWER_STDOUT_SELF); CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
 }
@@ -1568,17 +1600,17 @@ PetscErrorCode NonlinearPicard(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscErr
 @*/
 PetscErrorCode makeBEMPcmQualReactionPotential2(DM dm, BEMType bem, PetscReal epsIn, PetscReal epsOut, PQRData *pqr, Vec coordinates, Vec w, Vec n, Vec react)
 {
-  const PetscReal epsHat = (epsIn + epsOut)/(epsIn - epsOut);
-  SNES            snes;
-  Mat             J, A, Bp, B, C, S, fact;
-  Vec             d, t0, t1, t2;
+  //const PetscReal epsHat = (epsIn + epsOut)/(epsIn - epsOut);
+  //SNES            snes;
+  Mat             K, Bp, B, C;
+  Vec             t0, t1;
   Vec             guess;
   PetscErrorCode  ierr;
 
   PetscFunctionBegin;
   switch (bem) {
   case BEM_POINT_MF:
-    ierr = makeSurfaceToSurfacePointOperators_Laplace(coordinates, w, n, NULL, &A);CHKERRQ(ierr);
+    ierr = makeSurfaceToSurfacePointOperators_Laplace(coordinates, w, n, NULL, &K);CHKERRQ(ierr);
     ierr = makeSurfaceToChargePointOperators(coordinates, w, n, pqr, NULL, &B, &C, NULL);CHKERRQ(ierr);
     ierr = PetscLogEventBegin(CalcR_Event, 0, 0, 0, 0);CHKERRQ(ierr);
     /* B = chargesurfop.dphidnCoul */
@@ -1586,7 +1618,7 @@ PetscErrorCode makeBEMPcmQualReactionPotential2(DM dm, BEMType bem, PetscReal ep
     ierr = MatScale(B, -1/epsIn);CHKERRQ(ierr);
     break;
   case BEM_PANEL_MF:
-    ierr = makeSurfaceToSurfacePanelOperators_Laplace(dm, w, NULL /*n*/, NULL, &A);CHKERRQ(ierr);
+    ierr = makeSurfaceToSurfacePanelOperators_Laplace(dm, w, NULL /*n*/, NULL, &K);CHKERRQ(ierr);
     ierr = makeSurfaceToChargePanelOperators(dm, w, NULL /*n*/, pqr, NULL, NULL, &C, &Bp);CHKERRQ(ierr);
     ierr = PetscLogEventBegin(CalcR_Event, 0, 0, 0, 0);CHKERRQ(ierr);
     /* Bp = chargesurfop.dlpToCharges */
@@ -1600,8 +1632,8 @@ PetscErrorCode makeBEMPcmQualReactionPotential2(DM dm, BEMType bem, PetscReal ep
   /* C = chargesurfop.slpToCharges */
   ierr = MatScale(C, 4.0*PETSC_PI);CHKERRQ(ierr);
   /* A = surfsurfop.K */
-  ierr = MatTranspose(A, MAT_REUSE_MATRIX, &A);CHKERRQ(ierr);
-  ierr = MatDiagonalScale(A, NULL, w);CHKERRQ(ierr);
+  //ierr = MatTranspose(K, MAT_REUSE_MATRIX, &K);CHKERRQ(ierr);
+  //ierr = MatDiagonalScale(A, NULL, w);CHKERRQ(ierr);
   //ierr = VecDuplicate(w, &d);CHKERRQ(ierr);
   //ierr = VecCopy(w, d);CHKERRQ(ierr);
   //ierr = VecScale(d, epsHat/2.0);CHKERRQ(ierr);
@@ -1610,7 +1642,7 @@ PetscErrorCode makeBEMPcmQualReactionPotential2(DM dm, BEMType bem, PetscReal ep
 
   ierr = MatCreateVecs(B, NULL, &t0);CHKERRQ(ierr);
   ierr = VecDuplicate(t0, &t1);CHKERRQ(ierr);
-  ierr = MatMult(B, pqr->q, t0);CHKERRQ(ierr);
+  //ierr = MatMult(B, pqr->q, t0);CHKERRQ(ierr);
 
 
   
@@ -1631,12 +1663,12 @@ PetscErrorCode makeBEMPcmQualReactionPotential2(DM dm, BEMType bem, PetscReal ep
   ierr = VecDuplicate(t0, &guess); CHKERRQ(ierr);
   ierr = VecZeroEntries(guess); CHKERRQ(ierr);
   NonlinearContext nctx;
-  HContext         hctx = {.alpha = 0.5, .beta = -60, .gamma = -0.5, .mu = 0.0};
+  HContext         hctx = {.alpha = 0.0, .beta = -60, .gamma = -0.5};
   nctx.pqr    = pqr;
   nctx.epsIn  = epsIn;
   nctx.epsOut = epsOut;
   nctx.B      = &B;
-  nctx.K      = &A;
+  nctx.K      = &K;
   nctx.Bq     = &t0;
   nctx.w      = &w;
   nctx.hctx   = &hctx;
@@ -1651,12 +1683,12 @@ PetscErrorCode makeBEMPcmQualReactionPotential2(DM dm, BEMType bem, PetscReal ep
   */
 
 
-  //ierr = MatMult(C, t1, react);CHKERRQ(ierr);
+  ierr = MatMult(C, t1, react);CHKERRQ(ierr);
   ierr = VecDestroy(&t0);CHKERRQ(ierr);
   ierr = VecDestroy(&t1);CHKERRQ(ierr);
   //ierr = VecDestroy(&t2);CHKERRQ(ierr);
   //ierr = MatDestroy(&J);CHKERRQ(ierr);
-  ierr = MatDestroy(&A);CHKERRQ(ierr);
+  ierr = MatDestroy(&K);CHKERRQ(ierr);
   ierr = MatDestroy(&B);CHKERRQ(ierr);
   ierr = MatDestroy(&C);CHKERRQ(ierr);
   ierr = PetscLogEventEnd(CalcR_Event, 0, 0, 0, 0);CHKERRQ(ierr);
@@ -1687,7 +1719,7 @@ PetscErrorCode makeBEMPcmQualReactionPotential(DM dm, BEMType bem, PetscReal eps
 {
   const PetscReal epsHat = (epsIn + epsOut)/(epsIn - epsOut);
   SNES            snes;
-  Mat             J, A, Bp, B, C, S, fact;
+  Mat             J, A, Bp, B, C;
   Vec             d, t0, t1, t2;
   PetscErrorCode  ierr;
 
