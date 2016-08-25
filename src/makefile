@@ -1,11 +1,11 @@
 CFLAGS = -I.
 
-testSrfOnSurfacePoints: testSrfOnSurfacePoints.o surface.o
+testSrfOnSurfacePoints: testSrfOnSurfacePoints.o surface.o problem.o
 	${CLINKER} -o $@ $^ ${PETSC_LIB}
 	${DSYMUTIL} $@
 
 regression:
-	${PETSC_DIR}/config/builder2.py check [testSrfOnSurfacePoints.c,surface.c] --regParams=testParams ${ARGS}
+	${PETSC_DIR}/config/builder2.py check [testSrfOnSurfacePoints.c,surface.c,problem.c] --regParams=testParams ${ARGS}
 
 figures_sphere:
 	./meshConvergence.py --type=sphere --output=meshConvSphere
