@@ -1,6 +1,7 @@
 #include <petsc.h>
 #include <petsc/private/dmpleximpl.h>
 #include "constants.h"
+#include "ellipsoid.h"
 #include "surface.h"
 #include "problem.h"
 
@@ -1134,7 +1135,7 @@ PetscErrorCode makeBEMPcmQualReactionPotential(DM dm, BEMType bem, PetscReal eps
 {
   const PetscReal epsHat = (epsIn + epsOut)/(epsIn - epsOut);
   SNES            snes;
-  Mat             J, A, Bp, B, C, S, fact;
+  Mat             J, A, Bp, B, C;
   Vec             d, t0, t1, t2;
   PetscErrorCode  ierr;
 
@@ -1301,6 +1302,7 @@ PetscErrorCode CalculateBEMSolvationEnergy(DM dm, const char prefix[], BEMType b
   case BEM_PANEL_MF:
     ierr = DMGetCoordinatesLocal(dm, &coords);CHKERRQ(ierr);
     ierr = makeBEMPcmQualReactionPotential(dm, bem, epsIn, epsOut, pqr, coords, w, n, react);CHKERRQ(ierr);
+    L = NULL;
     ierr = PetscLogEventBegin(CalcE_Event, L, react, pqr->q, 0);CHKERRQ(ierr);
     break;
   }
@@ -1315,18 +1317,18 @@ PetscErrorCode CalculateBEMSolvationEnergy(DM dm, const char prefix[], BEMType b
 int main(int argc, char **argv)
 {
   /* Constants */
-  const PetscReal  q     = ELECTRON_CHARGE;
-  const PetscReal  Na    = AVOGADRO_NUMBER;
-  const PetscReal  JperC = 4.184; /* Jouled/Calorie */
-  const PetscReal  kB    = Na * BOLTZMANN_K/4.184/1000.0; /* Now in kcal/K/mol */
-  const PetscReal  cf    = Na * (q*q/EPSILON_0)/JperC * (1e10/1000) * 1/4/PETSC_PI; /* kcal ang/mol */
+  //const PetscReal  q     = ELECTRON_CHARGE;
+  //const PetscReal  Na    = AVOGADRO_NUMBER;
+  //const PetscReal  JperC = 4.184; /* Jouled/Calorie */
+  //const PetscReal  kB    = Na * BOLTZMANN_K/4.184/1000.0; /* Now in kcal/K/mol */
+  //const PetscReal  cf    = Na * (q*q/EPSILON_0)/JperC * (1e10/1000) * 1/4/PETSC_PI; /* kcal ang/mol */
   /* Problem data */
-  DM               dm, dmSimple;
+  DM               dm;
   PQRData          pqr;
   PetscSurface     msp;
   Vec              panelAreas, vertWeights, vertNormals, react;
   PetscReal        totalArea;
-  PetscInt         Np;
+  //PetscInt         Np;
   SolvationContext ctx;
   /* Solvation Energies */
   PetscScalar      Eref = 0.0, ESimple = 0.0, ESurf = 0.0, ESurfMF = 0.0, EPanel = 0.0, EMSP = 0.0;
@@ -1336,15 +1338,20 @@ int main(int argc, char **argv)
   ierr = PetscInitialize(&argc, &argv, NULL, NULL);CHKERRQ(ierr);
   ierr = PetscLogDefaultBegin();CHKERRQ(ierr);
   ierr = ProcessOptions(PETSC_COMM_WORLD, &ctx);CHKERRQ(ierr);
+
   /* Make PQR */
   if (ctx.isSphere) {
     ierr = makeSphereChargeDistribution(ctx.R, ctx.numCharges, ctx.h, PETSC_DETERMINE, &pqr);CHKERRQ(ierr);
     ierr = PQRViewFromOptions(&pqr);CHKERRQ(ierr);
   } else {
-    ierr = PQRCreateFromPDB(PETSC_COMM_WORLD, ctx.pdbFile, ctx.crgFile, &pqr);CHKERRQ(ierr);
+    ierr = PQRCreateFromPDB(PETSC_COMM_WORLD, ctx.pdbFile, ctx.crgFile, ctx.MM3File, &pqr);CHKERRQ(ierr);
   }
   ierr = VecDuplicate(pqr.q, &react);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) react, "Reaction Potential");CHKERRQ(ierr);
+
+  if(ctx.do_ellipsoid) {
+  }
+
   /* Make surface */
   ierr = loadSrfIntoSurfacePoints(PETSC_COMM_WORLD, ctx.srfFile, &vertNormals, &vertWeights, &panelAreas, &totalArea, &dm);CHKERRQ(ierr);
   {

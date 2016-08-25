@@ -10,6 +10,9 @@ typedef struct {
   Vec q;   /* Charge values */
   Vec xyz; /* Charge coordinates, always 3D */
   Vec R;   /* Charge radii */
+
+  Vec MM3rad; /* Charge radii (from Allinger MM3) */
+  Vec MM3eps; /* Charge energy parameters (from Allinger MM3) */
 } PQRData;
 
 typedef struct {
@@ -18,6 +21,8 @@ typedef struct {
   PetscReal epsOut;     /* solvent dielectric coefficient */
   char      pdbFile[PETSC_MAX_PATH_LEN]; /* Chemists are crazy and have never heard of normalized data */
   char      crgFile[PETSC_MAX_PATH_LEN];
+  char      MM3File[PETSC_MAX_PATH_LEN]; /* Path to MM3 file containing van der Waals parameters */
+
   /* Surface file */
   PetscInt  srfNum;     /* Resolution of mesh file */
   char      basename[PETSC_MAX_PATH_LEN];
@@ -32,16 +37,15 @@ typedef struct {
   PetscInt  numCharges; /* Number of atomic charges in the solute */
   PetscReal h;          /* Charge spacing */
   /* Ellipsoid setup */
-  PetscBool doEllipsoid;  /* Indicates whethr we want to form approximate ellipsoid */
-  PetscReal Ea, Eb, Ec;   /* Lengths of semi-axes of ellipsoid */
-  PetscReal Eorigin[3];   /* Center of ellipsoid */
-  PetscReal Erotation[3]; /* Axes Rotations */
+  PetscBool do_ellipsoid;  /* Indicates whethr we want to form approximate ellipsoid */
+  Ellipsoid ell;
   /* Analytical parameters */
   PetscInt  Nmax;       /* Order of the multipole expansion */
 } SolvationContext;
 
 PETSC_EXTERN PetscErrorCode ProcessOptions(MPI_Comm, SolvationContext*);
-PETSC_EXTERN PetscErrorCode PQRCreateFromPDB(MPI_Comm, const char[], const char[], PQRData*);
+PETSC_EXTERN PetscErrorCode PQRCreateFromPDB(MPI_Comm, const char[], const char[], const char[], PQRData*);
 PETSC_EXTERN PetscErrorCode PQRViewFromOptions(PQRData*);
 PETSC_EXTERN PetscErrorCode PQRDestroy(PQRData*);
+PETSC_EXTERN PetscErrorCode CalcEllipsoidInteraction(Ellipsoid*, PQRData*, PetscReal *val);
 #endif
