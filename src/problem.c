@@ -221,9 +221,9 @@ PetscErrorCode PQRCreateFromPDB(MPI_Comm comm, const char pdbFile[], const char 
       for (i = 0; i <= n; ++i) {
         double    tmp;
         PetscInt  c = 0;
-	printf("wow\n");
+
         /* Read line */
-        do {printf("wow!\n"); ierr = PetscViewerRead(viewerMM3, &buf[c++], 1, &cnt, PETSC_CHAR); CHKERRQ(ierr);}
+        do {ierr = PetscViewerRead(viewerMM3, &buf[c++], 1, &cnt, PETSC_CHAR); CHKERRQ(ierr);}
         while (buf[c-1] != '\n' && buf[c-1] != '\0' && cnt);
         if (!cnt) break;
         //if (i < 0) continue;
@@ -234,7 +234,7 @@ PetscErrorCode PQRCreateFromPDB(MPI_Comm comm, const char pdbFile[], const char 
 	MM3eps[i] = tmp;
 
         //q[i] = tmp;
-	//printf("line %d:     %f     %f\n", i, MM3rad[i], MM3eps[i]);
+
         /* Segment id [13] */
         /* Residue number [9-12] */
         /* Residue name [6-8] */
