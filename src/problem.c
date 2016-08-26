@@ -42,6 +42,7 @@ PetscErrorCode ProcessOptions(MPI_Comm comm, SolvationContext *ctx)
   ctx->Nmax       = 100;
   ctx->density    = 1.0;
 
+
   ierr = PetscStrcpy(ctx->basename, "../geometry/sphere_R6_vdens");CHKERRQ(ierr);
   ierr = PetscOptionsBegin(comm, "", "Solvation Problem Options", "BIBEE");CHKERRQ(ierr);
     ierr = PetscOptionsReal("-epsilon_solute", "The dielectric coefficient of the solute", "testSrfOnSurfacePoints", ctx->epsIn, &ctx->epsIn, NULL);CHKERRQ(ierr);
@@ -81,9 +82,15 @@ PetscErrorCode PQRCreateFromPDB(MPI_Comm comm, const char pdbFile[], const char 
   PetscReal     *charges, *coords;
   PetscInt       n = 0, i, d;
   PetscMPIInt    rank;
+  PetscBool      do_ellipsoid;
   PetscErrorCode ierr;
 
   PetscFunctionBeginUser;
+
+  //do_ellipsoid checks whether the MM3 data is provided
+  ierr = PetscOptionsGetBool(NULL, NULL, "-MM3File", NULL, &do_ellipsoid);
+
+  
   ierr = MPI_Comm_rank(comm, &rank);CHKERRQ(ierr);
   ierr = PetscViewerCreate(comm, &viewerPDB);CHKERRQ(ierr);
   ierr = PetscViewerSetType(viewerPDB, PETSCVIEWERASCII);CHKERRQ(ierr);
@@ -174,9 +181,9 @@ PetscErrorCode PQRCreateFromPDB(MPI_Comm comm, const char pdbFile[], const char 
       char     buf[128];
       PetscInt cnt = 0;
 
-      /* The MM3 file is required to have the same nubmer of atoms in the same order as the PDB */
+      /* The CRG file is required to have the same nubmer of atoms in the same order as the PDB */
       ierr = VecGetArray(pqr->q, &q); CHKERRQ(ierr);
-      for (i = -1; i < n; ++i) {
+      for (i = -1; i <= n; ++i) {
         double    tmp;
         PetscInt  c = 0;
 
@@ -198,25 +205,25 @@ PetscErrorCode PQRCreateFromPDB(MPI_Comm comm, const char pdbFile[], const char 
     }
     ierr = PetscViewerDestroy(&viewerCRG);CHKERRQ(ierr);
   }
-
-  if(MM3File) {
+  
+  if(do_ellipsoid) {
     ierr = PetscViewerCreate(comm, &viewerMM3); CHKERRQ(ierr);
     ierr = PetscViewerSetType(viewerMM3, PETSCVIEWERASCII); CHKERRQ(ierr);
     ierr = PetscViewerFileSetMode(viewerMM3, FILE_MODE_READ); CHKERRQ(ierr);
     ierr = PetscViewerFileSetName(viewerMM3, MM3File); CHKERRQ(ierr);
     if(!rank) {
       char     buf[128];
-      PetscInt cnt = 1;
+      PetscInt cnt = 0;
       
-      /* The CRG file is required to have the same nubmer of atoms in the same order as the PDB */
+      /* The MM3 file is required to have the same nubmer of atoms in the same order as the PDB */
       ierr = VecGetArray(pqr->MM3eps, &MM3eps); CHKERRQ(ierr);
       ierr = VecGetArray(pqr->MM3rad, &MM3rad); CHKERRQ(ierr);
-      for (i = 0; i < n; ++i) {
+      for (i = 0; i <= n; ++i) {
         double    tmp;
         PetscInt  c = 0;
-	
+	printf("wow\n");
         /* Read line */
-        do {ierr = PetscViewerRead(viewerMM3, &buf[c++], 1, &cnt, PETSC_CHAR);CHKERRQ(ierr);}
+        do {printf("wow!\n"); ierr = PetscViewerRead(viewerMM3, &buf[c++], 1, &cnt, PETSC_CHAR); CHKERRQ(ierr);}
         while (buf[c-1] != '\n' && buf[c-1] != '\0' && cnt);
         if (!cnt) break;
         //if (i < 0) continue;
@@ -225,6 +232,7 @@ PetscErrorCode PQRCreateFromPDB(MPI_Comm comm, const char pdbFile[], const char 
 	MM3rad[i] = tmp;
         ierr = sscanf(&buf[13], "%lg", &tmp); if (ierr != 1) SETERRQ2(comm, PETSC_ERR_ARG_WRONG, "Could not read charge for line %d of MM3 file %", i+1, MM3File);
 	MM3eps[i] = tmp;
+
         //q[i] = tmp;
 	//printf("line %d:     %f     %f\n", i, MM3rad[i], MM3eps[i]);
         /* Segment id [13] */
@@ -235,7 +243,7 @@ PetscErrorCode PQRCreateFromPDB(MPI_Comm comm, const char pdbFile[], const char 
       ierr = VecRestoreArray(pqr->MM3rad, &MM3rad); CHKERRQ(ierr);
       ierr = VecRestoreArray(pqr->MM3eps, &MM3eps); CHKERRQ(ierr);
     }
-    ierr = PetscViewerDestroy(&viewerCRG); CHKERRQ(ierr);
+    ierr = PetscViewerDestroy(&viewerMM3); CHKERRQ(ierr);
   }
     
 
