@@ -1344,12 +1344,40 @@ int main(int argc, char **argv)
     ierr = makeSphereChargeDistribution(ctx.R, ctx.numCharges, ctx.h, PETSC_DETERMINE, &pqr);CHKERRQ(ierr);
     ierr = PQRViewFromOptions(&pqr);CHKERRQ(ierr);
   } else {
-    ierr = PQRCreateFromPDB(PETSC_COMM_WORLD, ctx.pdbFile, ctx.crgFile, ctx.MM3File, &pqr);CHKERRQ(ierr);
+    ierr = PQRCreateFromPDB(PETSC_COMM_WORLD, ctx.pdbFile, ctx.crgFile, ctx.do_ellipsoid, ctx.MM3File, &pqr);CHKERRQ(ierr);
   }
   ierr = VecDuplicate(pqr.q, &react);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) react, "Reaction Potential");CHKERRQ(ierr);
 
-  if(ctx.do_ellipsoid) {
+  if(ctx.do_ellipsoid == 1) {
+    //form ellipsoid
+    Ellipsoid ell;
+    //PetscReal val;
+    ell.a = 3.0; ell.b = 2.0; ell.c = 1.0;                               //semi-axes of ellipsoid
+    ell.origin[0] = 0.0; ell.origin[1] = 0.0; ell.origin[2] = 0.0;  //translation
+    ell.rotation[0] = 0.0; ell.rotation[1] = 0.0; ell.rotation[2] = 0.0;   //rotation
+    Vec ellVals;
+    ierr = VecCreateSeq(PETSC_COMM_SELF, 9, &ellVals); CHKERRQ(ierr);
+    PetscInt index = 0;
+    ierr = VecSetValues(ellVals, 1, &index, &ell.a, INSERT_VALUES); CHKERRQ(ierr); index++;
+    ierr = VecSetValues(ellVals, 1, &index, &ell.b, INSERT_VALUES); CHKERRQ(ierr); index++;
+    ierr = VecSetValues(ellVals, 1, &index, &ell.c, INSERT_VALUES); CHKERRQ(ierr); index++;
+    ierr = VecSetValues(ellVals, 1, &index, &ell.origin[0], INSERT_VALUES); CHKERRQ(ierr); index ++;
+    ierr = VecSetValues(ellVals, 1, &index, &ell.origin[1], INSERT_VALUES); CHKERRQ(ierr); index ++;
+    ierr = VecSetValues(ellVals, 1, &index, &ell.origin[2], INSERT_VALUES); CHKERRQ(ierr); index ++;
+    ierr = VecSetValues(ellVals, 1, &index, &ell.rotation[0], INSERT_VALUES); CHKERRQ(ierr);
+    ierr = VecSetValues(ellVals, 1, &index, &ell.rotation[1], INSERT_VALUES); CHKERRQ(ierr);
+    ierr = VecSetValues(ellVals, 1, &index, &ell.rotation[2], INSERT_VALUES); CHKERRQ(ierr);
+    ierr = VecAssemblyBegin(ellVals); CHKERRQ(ierr);
+    ierr = VecAssemblyEnd(ellVals); CHKERRQ(ierr);
+    PetscReal fwow;
+    InteractionContext ictx;
+    ictx.ell = &ell;
+    ictx.pqr = &pqr;
+    Vec gv;
+    ierr = VecDuplicate(ellVals, &gv);
+    //ierr = EllipsoidInteractionInterface(NULL, ellVals, &fwow, &ictx); CHKERRQ(ierr);
+    ierr = CalcInteractionObjectiveGradient(NULL, ellVals, &fwow, gv, &ictx);
   }
 
   /* Make surface */

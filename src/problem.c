@@ -1,23 +1,354 @@
 #include <petsc.h>
+#include <petscmat.h>
 #include <petsc/private/dmpleximpl.h>
 #include "constants.h"
 #include "surface.h"
 #include "ellipsoid.h"
 #include "problem.h"
 
+/*
+
+DistToOrigin - Calculates distance to origin from surface of ellipsoid in spherical coordinates
+
+*/
+#undef __FUNCT__
+#define __FUNCT__ "DistToOrigin"
+PetscErrorCode DistToOrigin(Ellipsoid *ell, PetscReal theta, PetscReal phi, PetscReal *dist)
+{
+
+  PetscFunctionBegin;
+  
+  PetscReal cos2theta = PetscCosReal(theta)*PetscCosReal(theta);
+  PetscReal sin2theta = PetscSinReal(theta)*PetscSinReal(theta);
+  PetscReal cos2phi   = PetscCosReal(phi)*PetscCosReal(phi);
+  PetscReal sin2phi   = PetscSinReal(phi)*PetscSinReal(phi);
+ 
+  *dist = ell->a*ell->a*sin2theta*cos2phi +
+    ell->b*ell->b*sin2theta*sin2phi + 
+    ell->c*ell->c*cos2theta;
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "CalcInteractionHessian"
+PetscErrorCode CalcInteractionHessian(Tao tao, Vec x, Mat H, Mat Hpre, InteractionContext *ctx)
+{
+  const PetscReal del = .001;
+  Vec x1, x2;
+  Vec df1, df2;
+  PetscInt ndim;
+  PetscBool assembled;
+  PetscErrorCode ierr;
+  PetscFunctionBegin;
+
+  //initialize hessian entries
+  ierr = MatAssembled(H, &assembled);
+  if(assembled) { MatZeroEntries(H); }
+  
+  //get dimension of x
+  ierr = VecGetSize(x, &ndim); CHKERRQ(ierr);
+
+  //copy x to x1 and x2
+  ierr = VecDuplicate(x, &x1); CHKERRQ(ierr);
+  ierr = VecDuplicate(x, &x2); CHKERRQ(ierr);
+  ierr = VecCopy(x, x1); CHKERRQ(ierr);
+  ierr = VecCopy(x, x2); CHKERRQ(ierr);  
+
+  //initialize gradient vectors
+  ierr = VecDuplicate(x, &df1); CHKERRQ(ierr);
+  ierr = VecDuplicate(x, &df2); CHKERRQ(ierr);
+
+  //loop over columns
+  for(PetscInt j=0; j<ndim; ++j) {
+    //add/subtract del to row row j
+    ierr = VecSetValue(x1, j, -del, ADD_VALUES); CHKERRQ(ierr);
+    ierr = VecSetValue(x2, j,  del, ADD_VALUES); CHKERRQ(ierr);
+    //calculate gradient for x1, x2
+    //ierr = CalcInterationObjectiveGradient(tao, x1, NULL, 
+  }
+
+  PetscFunctionReturn(0);
+}
+
+
+/*
+Calculates the function and the gradient at position x
+if g is NULL then only the function is evaluated
+
+ */
+#undef __FUNCT__
+#define __FUNCT__ "CalcInteractionObjectiveGradient"
+PetscErrorCode CalcInteractionObjectiveGradient(Tao tao, Vec x, PetscReal *f, Vec g, InteractionContext *ctx)
+{
+  const PetscReal del = .001;
+  PetscReal evals[2*9];
+  PetscReal storeVal;
+  PetscReal inter;
+  PetscReal der;
+  PetscErrorCode ierr;
+  Vec xLocal;
+  PetscFunctionBegin;
+
+  //calculate function value
+  if(f) {
+    ierr = EllipsoidInteractionInterface(tao, x, f, ctx); CHKERRQ(ierr);
+  }
+  
+  if(g) {
+
+    
+    ierr = VecDuplicate(x, &xLocal); CHKERRQ(ierr);
+    ierr = VecCopy(x, xLocal); CHKERRQ(ierr);
+    
+    PetscReal stencil[2] = {-del, 2*del}; //stencil
+    
+    for(PetscInt i=0; i<9; ++i) { //over each ellipsoid parameter
+      ierr = VecGetValues(xLocal, 1, &i, &storeVal); CHKERRQ(ierr);
+      for(PetscInt j=0; j<2; ++j) { //finite difference evaluations
+	
+	ierr = VecSetValues(xLocal, 1, &i, stencil+j, ADD_VALUES); CHKERRQ(ierr);
+	ierr = VecAssemblyBegin(xLocal); CHKERRQ(ierr);
+	ierr = VecAssemblyEnd(xLocal); CHKERRQ(ierr);
+	ierr = EllipsoidInteractionInterface(tao, xLocal, &inter, ctx); CHKERRQ(ierr);
+	evals[2*i+j] = inter;
+	
+      }
+      //restore x values
+      ierr = VecSetValues(xLocal, 1, &i, &storeVal, INSERT_VALUES); CHKERRQ(ierr);
+      ierr = VecAssemblyBegin(xLocal); CHKERRQ(ierr);
+      ierr = VecAssemblyEnd(xLocal); CHKERRQ(ierr);
+      
+      der = (evals[i*2+1] - evals[i*2])/(2.0*del);
+      ierr = VecSetValue(g, i, der, INSERT_VALUES); CHKERRQ(ierr);
+    }
+    
+    ierr = VecAssemblyBegin(g); CHKERRQ(ierr);
+    ierr = VecAssemblyEnd(g); CHKERRQ(ierr);
+  }
+
+  PetscFunctionReturn(0);
+}
+
+/*
+  x[0] = a
+  x[1] = b
+  x[2] = c
+  x[3] = translation[0]
+  x[4] = translation[1]
+  x[5] = translation[2]
+  x[6] = rotation[0]
+  x[7] = rotation[1]
+  x[8] = rotation[2]
+  
+ */
+#undef __FUNCT__
+#define __FUNCT__ "EllipsoidInteractionInterface"
+PetscErrorCode EllipsoidInteractionInterface(Tao tao, Vec x, PetscReal *val, InteractionContext *ctx)
+{
+  Ellipsoid locEll;
+  PetscErrorCode ierr;
+  PetscFunctionBegin;
+  PetscInt i = 0;
+  ierr = VecGetValues(x, 1, &i, &(locEll.a)); CHKERRQ(ierr); i++;
+  ierr = VecGetValues(x, 1, &i, &(locEll.b)); CHKERRQ(ierr); i++;
+  ierr = VecGetValues(x, 1, &i, &(locEll.c)); CHKERRQ(ierr); i++;
+  ierr = VecGetValues(x, 1, &i, &(locEll.origin[0])); CHKERRQ(ierr); i++;
+  ierr = VecGetValues(x, 1, &i, &(locEll.origin[1])); CHKERRQ(ierr); i++;
+  ierr = VecGetValues(x, 1, &i, &(locEll.origin[2])); CHKERRQ(ierr); i++;
+  ierr = VecGetValues(x, 1, &i, &(locEll.rotation[0])); CHKERRQ(ierr); i++;
+  ierr = VecGetValues(x, 1, &i, &(locEll.rotation[1])); CHKERRQ(ierr); i++;
+  ierr = VecGetValues(x, 1, &i, &(locEll.rotation[2])); CHKERRQ(ierr); i++;
+
+  ierr = CalcEllipsoidInteraction(&locEll, ctx->pqr, val); CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
 
 #undef __FUNCT__
 #define __FUNCT__ "CalcEllipsoidInteraction"
 PetscErrorCode CalcEllipsoidInteraction(Ellipsoid *ell, PQRData *pqr, PetscReal *val)
 {
+  Mat         P, Ptemp;
+  Mat         rotX, rotY, rotZ;
+  Vec         xyzCopy;
+  PetscScalar *data;
+  PetscInt    size, npts;
+  PetscViewer out;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
 
-  ierr = 1;
-  *val = 1.0;
+  //form matrix with xyz data in columns
+  ierr = VecGetSize(pqr->xyz, &size); CHKERRQ(ierr);
+  npts = size/3;
+  ierr = VecDuplicate(pqr->xyz, &xyzCopy); CHKERRQ(ierr);
+  ierr = VecCopy(pqr->xyz, xyzCopy); CHKERRQ(ierr);
+  ierr = VecGetArray(xyzCopy, &data); CHKERRQ(ierr);
+  ierr = MatCreateSeqDense(PETSC_COMM_SELF, 3, npts, data, &P); CHKERRQ(ierr);
+
+  
+  //output P matrix before any transformations
+  ierr = PetscViewerASCIIOpen(PETSC_COMM_SELF, "out1.txt", &out); CHKERRQ(ierr);
+  ierr = MatView(P, out); CHKERRQ(ierr);
+  ierr = PetscViewerDestroy(&out);
+
+  PetscReal t1, t2, t3;
+  t1 = ell->rotation[0];
+  t2 = ell->rotation[1];
+  t3 = ell->rotation[2];
+  PetscScalar rotXvals[9] = {1,       0,        0,
+			     0,  PetscCosReal(t1), PetscSinReal(t1),
+			     0, -PetscSinReal(t1), PetscCosReal(t1) };
+  PetscScalar rotYvals[9] = {PetscCosReal(t2),  0, -PetscSinReal(t2),
+			     0,        1,        0,
+			     PetscSinReal(t2),  0,  PetscCosReal(t2) };
+  PetscScalar rotZvals[9] = {PetscCosReal(t3) , PetscSinReal(t3), 0,
+			     -PetscSinReal(t3), PetscCosReal(t3), 0,
+			     0,        0,       1 };
 
 
+  //create rotation matrices
+  ierr = MatCreateSeqDense(PETSC_COMM_SELF, 3, 3, &rotXvals[0], &rotX); CHKERRQ(ierr);
+  ierr = MatCreateSeqDense(PETSC_COMM_SELF, 3, 3, &rotYvals[0], &rotY); CHKERRQ(ierr);
+  ierr = MatCreateSeqDense(PETSC_COMM_SELF, 3, 3, &rotZvals[0], &rotZ); CHKERRQ(ierr);
+  
+
+  //translate all points
+  PetscInt rows[3] = {0, 1, 2};
+  ierr = MatAssemblyBegin(P, MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
+  for(PetscInt i=0; i<npts; ++i)
+    ierr = MatSetValues(P, 3, rows, 1, &i, &ell->origin[0], ADD_VALUES); CHKERRQ(ierr);
+  ierr = MatAssemblyEnd(P, MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
+
+  //rotate all points
+  ierr = MatDuplicate(P, MAT_COPY_VALUES, &Ptemp); CHKERRQ(ierr);
+  ierr = MatMatMult(rotX, Ptemp, MAT_REUSE_MATRIX, PETSC_DEFAULT, &P); CHKERRQ(ierr);     //x-rotation first
+  ierr = MatMatMult(rotY, P    , MAT_REUSE_MATRIX, PETSC_DEFAULT, &Ptemp); CHKERRQ(ierr); //y-rotation second
+  ierr = MatMatMult(rotZ, Ptemp, MAT_REUSE_MATRIX, PETSC_DEFAULT, &P); CHKERRQ(ierr);     //z-rotation last
+  
+  ierr = PetscViewerASCIIOpen(PETSC_COMM_SELF, "out2.txt", &out); CHKERRQ(ierr);
+  ierr = MatView(P, out); CHKERRQ(ierr);
+  ierr = PetscViewerDestroy(&out); CHKERRQ(ierr);
+  
+
+  /////
+  //INTERACTION ENERGY - using variables similar to Ford, Wang publication
+  ////
+  PetscReal rj;     //radii parameters from Allinger
+  PetscReal *ri;
+  PetscReal epsj; //energy parameters from Allinger
+  PetscReal *epsi;
+  PetscReal theta, phi;
+  PetscReal ellX, ellY, ellZ;
+  PetscReal solventX, solventY, solventZ;
+  PetscReal *soluteX, *soluteY, *soluteZ;
+  PetscReal s;
+  PetscReal ellA, ellB, ellC;
+  PetscReal ellA4, ellB4, ellC4;
+  PetscReal Aconst = 2.9e5;
+  PetscReal Bconst = 12.50;
+  PetscReal Cconst = 2.25;
+  rj = 1.82;    //coefficients for oxygen molecule, ignoring hydrogen in water
+  epsj = 0.059; //
+
+  ellA = ell->a; ellB = ell->b; ellC = ell->c;
+  ellA4 = PetscPowReal(ellA, 4);
+  ellB4 = PetscPowReal(ellB, 4);
+  ellC4 = PetscPowReal(ellC, 4);
+  //PetscInt nT = (b-a)/(nT-1);
+  PetscInt nT = 100; // FOR NOW nP must be 2*nT due to how delS is calculated
+  PetscInt nP = 2*nT; //
+  PetscReal delT = PETSC_PI/(nT);
+  PetscReal delP = 2*PETSC_PI/(nP);
+
+  //Matrix containing distance from ellipsoid surface to origin for each m,n
+  Mat R;
+  ierr = MatCreateSeqDense(PETSC_COMM_SELF, nT, nP, NULL, &R); CHKERRQ(ierr);
+
+  ierr = PetscMalloc1(npts, &soluteX); CHKERRQ(ierr);
+  ierr = PetscMalloc1(npts, &soluteY); CHKERRQ(ierr);
+  ierr = PetscMalloc1(npts, &soluteZ); CHKERRQ(ierr);
+  ierr = PetscMalloc1(npts, &epsi); CHKERRQ(ierr);
+  ierr = PetscMalloc1(npts, &ri); CHKERRQ(ierr);
+
+  PetscReal V = 0;
+  PetscReal surfA = 0;
+  //loop over theta angles
+  for(PetscInt m=0; m<nT; ++m) {
+    theta = delT*m;
+    //loop over phi angles
+    for(PetscInt n=0; n<nP; ++n) {
+      phi = delP*n;
+      //calculate point on ellipsoid for theta, phi
+      ellX = ellA*sin(theta)*cos(phi);
+      ellY = ellB*sin(theta)*sin(phi);
+      ellZ = ellC*cos(theta);
+      s = rj/((ellX*ellX/ellA4) + (ellY*ellY/ellB4) + (ellZ*ellZ/ellC4));
+      solventX = ellX*(1 + s/(ellA*ellA));
+      solventY = ellY*(1 + s/(ellB*ellB));
+      solventZ = ellZ*(1 + s/(ellC*ellC));
+      PetscReal rmn;
+      ierr = DistToOrigin(ell, theta, phi, &rmn); CHKERRQ(ierr);
+      //store distance to origin in R matrix
+      ierr = MatSetValue(R, m, n, rmn, INSERT_VALUES); CHKERRQ(ierr);
+      ierr = MatAssemblyBegin(R, MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
+      ierr = MatAssemblyEnd(R, MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
+     
+      PetscReal rm1n, rmn1;  //previous radius values for calculating delS
+      PetscInt m1 = m-1;
+      PetscInt n1 = n-1;
+      if(m==0 || n==0) {
+	ierr = DistToOrigin(ell, delT*(m1), delP*n, &rm1n); CHKERRQ(ierr);
+	ierr = DistToOrigin(ell, delT*m, delP*n1, &rmn1); CHKERRQ(ierr);
+      }
+      else {
+	ierr = MatGetValues(R, 1, &m1, 1, &n, &rm1n); CHKERRQ(ierr);
+	ierr = MatGetValues(R, 1, &m, 1, &n1, &rmn1); CHKERRQ(ierr);
+      }
+
+      //calculate delS
+      PetscReal delS = PetscSqrtReal(rmn*rmn + rm1n*rm1n - 2*rmn*rm1n*cos(delT))
+	* PetscSqrtReal(rmn*rmn + rmn1*rmn1 - 2*rmn*rmn1*cos(delT));
+
+      //loop over solute molecules
+      for(PetscInt i=0; i<npts; ++i) {
+
+	if(m==0 && n==0) {
+	  PetscInt val = 0;
+	  ierr = MatGetValues(P, 1, &val, 1, &i, soluteX+i); CHKERRQ(ierr); val++;
+	  ierr = MatGetValues(P, 1, &val, 1, &i, soluteY+i); CHKERRQ(ierr); val++;
+	  ierr = MatGetValues(P, 1, &val, 1, &i, soluteZ+i); CHKERRQ(ierr);
+	  
+	  ierr = VecGetValues(pqr->MM3rad, 1, &i, ri+i); CHKERRQ(ierr);
+	  ierr = VecGetValues(pqr->MM3eps, 1, &i, epsi+i); CHKERRQ(ierr);
+
+	}
+	//get solute radius and energy parameters
+
+	PetscReal eij = PetscSqrtReal(epsi[i]*epsj);
+	PetscReal rij = PetscSqrtReal((solventX - soluteX[i])*(solventX - soluteX[i]) + (solventY - soluteY[i])*(solventY - soluteY[i]) + (solventZ - soluteZ[i])*(solventZ - soluteZ[i]));
+	PetscReal Pij = (ri[i] + rj)/rij;
+	PetscReal Pij6 = Pij*Pij*Pij*Pij*Pij*Pij;
+	PetscReal Vij = eij*(Aconst*PetscExpReal(-Bconst/Pij) - Cconst*Pij6);
+	V += Vij*delS;
+	surfA += delS;
+
+	
+	
+      } 
+    } 
+      
+  }
+  *val = V/surfA;
+  ierr = VecRestoreArray(xyzCopy, &data); CHKERRQ(ierr);
+  ierr = MatDestroy(&P); CHKERRQ(ierr);
+  ierr = MatDestroy(&R); CHKERRQ(ierr);
+  ierr = MatDestroy(&Ptemp); CHKERRQ(ierr);
+  ierr = MatDestroy(&rotX); CHKERRQ(ierr);
+  ierr = MatDestroy(&rotY); CHKERRQ(ierr);
+  ierr = MatDestroy(&rotZ); CHKERRQ(ierr);
+
+  ierr = VecDestroy(&xyzCopy); CHKERRQ(ierr);
 
   PetscFunctionReturn(0);
 }
@@ -75,20 +406,20 @@ PetscErrorCode ProcessOptions(MPI_Comm comm, SolvationContext *ctx)
 
 #undef __FUNCT__
 #define __FUNCT__ "PQRCreateFromPDB"
-PetscErrorCode PQRCreateFromPDB(MPI_Comm comm, const char pdbFile[], const char crgFile[], const char MM3File[], PQRData *pqr)
+PetscErrorCode PQRCreateFromPDB(MPI_Comm comm, const char pdbFile[], const char crgFile[], PetscBool do_ellipsoid, const char MM3File[], PQRData *pqr)
 {
   PetscViewer    viewerPDB, viewerCRG, viewerMM3;
   PetscScalar   *q, *x, *MM3rad, *MM3eps;
   PetscReal     *charges, *coords;
   PetscInt       n = 0, i, d;
   PetscMPIInt    rank;
-  PetscBool      do_ellipsoid;
+  //PetscBool      do_ellipsoid;
   PetscErrorCode ierr;
 
   PetscFunctionBeginUser;
 
   //do_ellipsoid checks whether the MM3 data is provided
-  ierr = PetscOptionsGetBool(NULL, NULL, "-MM3File", NULL, &do_ellipsoid);
+  //ierr = PetscOptionsGetBool(NULL, NULL, "-do_ellipsoid", NULL, &do_ellipsoid);
 
   
   ierr = MPI_Comm_rank(comm, &rank);CHKERRQ(ierr);
@@ -100,7 +431,8 @@ PetscErrorCode PQRCreateFromPDB(MPI_Comm comm, const char pdbFile[], const char 
     char     buf[128];
     PetscInt line = 0, maxSize = 1024, cnt = 1;
 
-    ierr = PetscMalloc2(maxSize, &charges, maxSize*3, &coords);CHKERRQ(ierr);
+    ierr = PetscMalloc1(maxSize, &charges); CHKERRQ(ierr);
+    ierr = PetscMalloc1(maxSize*3, &coords); CHKERRQ(ierr);
     while (cnt) {
       PetscInt c = 0;
 
@@ -245,8 +577,7 @@ PetscErrorCode PQRCreateFromPDB(MPI_Comm comm, const char pdbFile[], const char 
     }
     ierr = PetscViewerDestroy(&viewerMM3); CHKERRQ(ierr);
   }
-    
-
+  
   ierr = VecDuplicate(pqr->q, &pqr->R);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) pqr->R, "Atomic radii");CHKERRQ(ierr);
   ierr = VecSet(pqr->R, 0.0);CHKERRQ(ierr);

@@ -43,9 +43,18 @@ typedef struct {
   PetscInt  Nmax;       /* Order of the multipole expansion */
 } SolvationContext;
 
+//context for optimization function calculating function and gradient
+typedef struct {
+  Ellipsoid *ell;
+  PQRData *pqr;
+} InteractionContext;
+
+
 PETSC_EXTERN PetscErrorCode ProcessOptions(MPI_Comm, SolvationContext*);
-PETSC_EXTERN PetscErrorCode PQRCreateFromPDB(MPI_Comm, const char[], const char[], const char[], PQRData*);
+PETSC_EXTERN PetscErrorCode PQRCreateFromPDB(MPI_Comm, const char[], const char[], PetscBool, const char[], PQRData*);
 PETSC_EXTERN PetscErrorCode PQRViewFromOptions(PQRData*);
 PETSC_EXTERN PetscErrorCode PQRDestroy(PQRData*);
-PETSC_EXTERN PetscErrorCode CalcEllipsoidInteraction(Ellipsoid*, PQRData*, PetscReal *val);
+PETSC_EXTERN PetscErrorCode CalcEllipsoidInteraction(Ellipsoid*, PQRData*, PetscReal*);
+PETSC_EXTERN PetscErrorCode EllipsoidInteractionInterface(Tao, Vec, PetscReal*, InteractionContext*);
+PETSC_EXTERN PetscErrorCode CalcInteractionObjectiveGradient(Tao, Vec, PetscReal*, Vec, InteractionContext*);
 #endif
