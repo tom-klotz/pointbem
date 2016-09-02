@@ -1370,14 +1370,26 @@ int main(int argc, char **argv)
     ierr = VecSetValues(ellVals, 1, &index, &ell.rotation[2], INSERT_VALUES); CHKERRQ(ierr);
     ierr = VecAssemblyBegin(ellVals); CHKERRQ(ierr);
     ierr = VecAssemblyEnd(ellVals); CHKERRQ(ierr);
-    PetscReal fwow;
+    //PetscReal fwow;
     InteractionContext ictx;
     ictx.ell = &ell;
     ictx.pqr = &pqr;
     Vec gv;
     ierr = VecDuplicate(ellVals, &gv);
     //ierr = EllipsoidInteractionInterface(NULL, ellVals, &fwow, &ictx); CHKERRQ(ierr);
-    ierr = CalcInteractionObjectiveGradient(NULL, ellVals, &fwow, gv, &ictx);
+    //ierr = CalcInteractionObjectiveGradient(NULL, ellVals, &fwow, gv, &ictx); CHKERRQ(ierr);
+    Mat H, Hpre;
+    ierr = MatCreateSeqDense(PETSC_COMM_WORLD, 9, 9, NULL, &H); CHKERRQ(ierr);
+    ierr = MatCreateSeqDense(PETSC_COMM_WORLD, 9, 9, NULL, &Hpre); CHKERRQ(ierr);
+    
+    //set up Tao solver
+    Tao tao;
+    ierr = TaoCreate(PETSC_COMM_WORLD, &tao); CHKERRQ(ierr);
+    ierr = TaoSetType(tao, TAONLS); CHKERRQ(ierr); //Use Newton w/ line search
+    ierr = TaoSetInitialVector(tao, ellVals); CHKERRQ(ierr);
+    ierr = TaoSetObjectiveAndGradientRoutine(tao, (PetscErrorCode (*)(Tao, Vec, PetscReal*, Vec, void*)) CalcInteractionObjectiveGradient, &ictx); CHKERRQ(ierr);
+    ierr = TaoSetHessianRoutine(tao, H, Hpre, (PetscErrorCode (*)(Tao, Vec, Mat, Mat, void*)) CalcInteractionHessian, &ictx); CHKERRQ(ierr);
+    ierr = CalcInteractionHessian(NULL, ellVals, H, Hpre, &ictx); CHKERRQ(ierr);
   }
 
   /* Make surface */

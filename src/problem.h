@@ -57,4 +57,5 @@ PETSC_EXTERN PetscErrorCode PQRDestroy(PQRData*);
 PETSC_EXTERN PetscErrorCode CalcEllipsoidInteraction(Ellipsoid*, PQRData*, PetscReal*);
 PETSC_EXTERN PetscErrorCode EllipsoidInteractionInterface(Tao, Vec, PetscReal*, InteractionContext*);
 PETSC_EXTERN PetscErrorCode CalcInteractionObjectiveGradient(Tao, Vec, PetscReal*, Vec, InteractionContext*);
+PETSC_EXTERN PetscErrorCode CalcInteractionHessian(Tao, Vec, Mat, Mat, InteractionContext*);
 #endif

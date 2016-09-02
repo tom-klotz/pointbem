@@ -34,16 +34,20 @@ PetscErrorCode DistToOrigin(Ellipsoid *ell, PetscReal theta, PetscReal phi, Pets
 PetscErrorCode CalcInteractionHessian(Tao tao, Vec x, Mat H, Mat Hpre, InteractionContext *ctx)
 {
   const PetscReal del = .001;
+  const PetscReal del2 = 2*del;
   Vec x1, x2;
   Vec df1, df2;
+  PetscReal *vals;
   PetscInt ndim;
-  PetscBool assembled;
+  //PetscBool assembled;
   PetscErrorCode ierr;
   PetscFunctionBegin;
 
   //initialize hessian entries
-  ierr = MatAssembled(H, &assembled);
-  if(assembled) { MatZeroEntries(H); }
+  //ierr = MatAssembled(H, &assembled);
+  //if(assembled) { MatZeroEntries(H); }
+
+  MatZeroEntries(H);
   
   //get dimension of x
   ierr = VecGetSize(x, &ndim); CHKERRQ(ierr);
@@ -63,9 +67,31 @@ PetscErrorCode CalcInteractionHessian(Tao tao, Vec x, Mat H, Mat Hpre, Interacti
     //add/subtract del to row row j
     ierr = VecSetValue(x1, j, -del, ADD_VALUES); CHKERRQ(ierr);
     ierr = VecSetValue(x2, j,  del, ADD_VALUES); CHKERRQ(ierr);
+    ierr = VecAssemblyBegin(x1); CHKERRQ(ierr); ierr = VecAssemblyEnd(x1); CHKERRQ(ierr);
+    ierr = VecAssemblyBegin(x2); CHKERRQ(ierr); ierr = VecAssemblyEnd(x2); CHKERRQ(ierr);
     //calculate gradient for x1, x2
-    //ierr = CalcInterationObjectiveGradient(tao, x1, NULL, 
+    ierr = CalcInteractionObjectiveGradient(tao, x1, NULL, df1, ctx); CHKERRQ(ierr);
+    ierr = CalcInteractionObjectiveGradient(tao, x2, NULL, df2, ctx); CHKERRQ(ierr);
+    ierr = VecAXPY(x2, -1.0, x1); CHKERRQ(ierr);
+    ierr = VecScale(x2, 1./del2); CHKERRQ(ierr);
+    
+    ierr = VecGetArray(x2, &vals); CHKERRQ(ierr);
+    //loop over rows and enter into matrix
+    for(PetscInt i=0; i<ndim; ++i) {
+      ierr = MatSetValue(H, i, j, vals[i], INSERT_VALUES); CHKERRQ(ierr);
+      ierr = MatSetValue(Hpre, i, j, vals[i], INSERT_VALUES); CHKERRQ(ierr);
+    }
+
   }
+  ierr = MatAssemblyBegin(H, MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
+  ierr = MatAssemblyBegin(Hpre, MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
+  ierr = MatAssemblyEnd(H, MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
+  ierr = MatAssemblyEnd(Hpre, MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
+  
+  ierr = VecDestroy(&x1); CHKERRQ(ierr);
+  ierr = VecDestroy(&x2); CHKERRQ(ierr);
+  ierr = VecDestroy(&df1); CHKERRQ(ierr);
+  ierr = VecDestroy(&df2); CHKERRQ(ierr);
 
   PetscFunctionReturn(0);
 }
@@ -256,7 +282,7 @@ PetscErrorCode CalcEllipsoidInteraction(Ellipsoid *ell, PQRData *pqr, PetscReal 
   ellB4 = PetscPowReal(ellB, 4);
   ellC4 = PetscPowReal(ellC, 4);
   //PetscInt nT = (b-a)/(nT-1);
-  PetscInt nT = 100; // FOR NOW nP must be 2*nT due to how delS is calculated
+  PetscInt nT = 10; // FOR NOW nP must be 2*nT due to how delS is calculated
   PetscInt nP = 2*nT; //
   PetscReal delT = PETSC_PI/(nT);
   PetscReal delP = 2*PETSC_PI/(nP);
