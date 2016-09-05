@@ -1408,12 +1408,12 @@ PetscErrorCode ASCBq(Vec sigma, Vec *Bq, NonlinearContext *ctx)
   PetscFunctionBeginUser;
   epsOut = ctx->epsOut;
   epsIn  = ctx->epsIn;
-  epsHat = (epsOut - epsIn)/epsOut;
+  epsHat = (epsIn - epsOut)/epsIn;
 
   B = ctx->B;
 
   ierr = MatMult(*B, ctx->pqr->q, *Bq); CHKERRQ(ierr);
-  ierr = VecScale(*Bq, -epsHat); CHKERRQ(ierr);
+  ierr = VecScale(*Bq, epsHat); CHKERRQ(ierr);
   //ierr = VecView(ctx->pqr->q, PETSC_VIEWER_STDOUT_SELF);
   PetscFunctionReturn(0);
 }
@@ -1448,7 +1448,7 @@ PetscErrorCode FormASCNonlinearMatrix(Vec sigma, Mat *A, NonlinearContext *ctx)
   Bq      = ctx->Bq;
   w       = ctx->w;
   q       = &(ctx->pqr->q);
-  epsHat  = (epsOut - epsIn)/epsOut;
+  epsHat  = (epsIn - epsOut)/epsIn;
   epsHat2 = (epsOut + epsIn)/(2*epsOut);
 
   //get the dimension of sigma
@@ -1458,6 +1458,7 @@ PetscErrorCode FormASCNonlinearMatrix(Vec sigma, Mat *A, NonlinearContext *ctx)
 
   //A = I + epsHat*(K - (1/2)*I)
   ierr = MatTranspose(*K, MAT_REUSE_MATRIX, A); CHKERRQ(ierr); //gives qualocated normal field operator
+  //ierr = MatCopy(*K, *A, SAME_NONZERO_PATTERN); CHKERRQ(ierr);
   //ierr = MatScale(A, epsHat); CHKERRQ(ierr);
   //ierr = VecDuplicate(sigma, &iden); CHKERRQ(ierr);
   //ierr = VecSet(iden, epsHat2); CHKERRQ(ierr);
@@ -1499,7 +1500,7 @@ PetscErrorCode FormASCNonlinearMatrix(Vec sigma, Mat *A, NonlinearContext *ctx)
   ierr = MatDiagonalScale(*A, NULL, *w); CHKERRQ(ierr);
 
 
-  if(A) {ierr = MatAssemblyBegin(*A, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);ierr = MatAssemblyEnd(*A, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);}
+  ierr = MatAssemblyBegin(*A, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);ierr = MatAssemblyEnd(*A, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
 
   PetscFunctionReturn(0);
 }
@@ -1550,11 +1551,11 @@ PetscErrorCode NonlinearPicard(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscErr
   ierr = VecDuplicate(guess, &errvec);
   ierr = VecSet(errvec, -1.2);
 
-  ierr = VecView(errvec, PETSC_VIEWER_STDOUT_SELF);
+  //ierr = VecView(errvec, PETSC_VIEWER_STDOUT_SELF);
   PetscReal err = 1; 
   for(int iter=1; iter<=10; ++iter)
   {
-    printf("\n\nITERATION NUMBER %d\n", iter);
+    //printf("\n\nITERATION NUMBER %d\n", iter);
     ierr = (*lhs)(*sol, &A, ctx); CHKERRQ(ierr);
     ierr = (*rhs)(*sol, &b, ctx); CHKERRQ(ierr);
     //ierr = MatView(A, PETSC_VIEWER_STDOUT_SELF);
@@ -1571,8 +1572,8 @@ PetscErrorCode NonlinearPicard(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscErr
     ierr = VecAXPY(errvec, -1.0, *sol); CHKERRQ(ierr);
     ierr = VecNorm(errvec, NORM_2, &err); CHKERRQ(ierr);
     
-    printf("THE ERROR IS: %15.15f\n", err);
-    printf("sol:\n");
+    //printf("THE ERROR IS: %15.15f\n", err);
+    //printf("sol:\n");
     //ierr = VecView(*sol, PETSC_VIEWER_STDOUT_SELF); CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
@@ -1993,6 +1994,8 @@ int main(int argc, char **argv)
   } else {
     Eref = 1.0; /* TODO This should be higher resolution BEM */
     ierr = PetscPrintf(PETSC_COMM_WORLD, "Eref = %.6f ESurf  = %.6f Error = %.6f Rel. error = %.4f\n", Eref, ESurf,  Eref-ESurf,  (Eref-ESurf)/Eref);CHKERRQ(ierr);
+    ierr = PetscPrintf(PETSC_COMM_WORLD, "Eref = %.6f ESurfMF = %.6f Error = %.6f Rel. error = %.4f\n", Eref, ESurfMF, Eref-ESurfMF, (Eref-ESurfMF)/Eref);CHKERRQ(ierr);
+    //ierr = PetscPrintf(PETSC_COMM_WORLD, "Eref = %.6f ESimple = %.6f Error = %.6f Rel. error = %.4f\n", Eref, ESimple, Eref-ESimple, (Eref-ESimple)/Eref);CHKERRQ(ierr);
     ierr = PetscPrintf(PETSC_COMM_WORLD, "Eref = %.6f EPanel = %.6f Error = %.6f Rel. error = %.4f\n", Eref, EPanel, Eref-EPanel, (Eref-EPanel)/Eref);CHKERRQ(ierr);
     if (msp.weights) {ierr = PetscPrintf(PETSC_COMM_WORLD, "Eref = %.6f EMSP   = %.6f Error = %.6f Rel. error = %.4f\n", Eref, EMSP,   Eref-EMSP,   (Eref-EMSP)/Eref);CHKERRQ(ierr);}
   }
