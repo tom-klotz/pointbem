@@ -245,6 +245,9 @@ PetscErrorCode loadSrfIntoSurfacePoints(MPI_Comm comm, const char filename[], Ve
   ierr = PetscViewerASCIIRead(viewer, &basename[l+1], 1, NULL, PETSC_STRING);CHKERRQ(ierr);
   ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
 
+  for(int i=0; i<PETSC_MAX_PATH_LEN; ++i)
+    printf("%c",basename[i]);
+  printf("\n\n");
   ierr = DMPlexCreateBardhanFromFile(comm, basename, PETSC_TRUE, n, dm);CHKERRQ(ierr);
   ierr = DMPlexGetHeightStratum(*dm, 0, &cStart, &cEnd);CHKERRQ(ierr);
   ierr = DMPlexGetDepthStratum(*dm, 0, &vStart, &vEnd);CHKERRQ(ierr);

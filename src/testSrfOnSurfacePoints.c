@@ -1474,15 +1474,15 @@ PetscErrorCode FormASCNonlinearMatrix(Vec sigma, Mat *A, NonlinearContext *ctx)
   ierr = VecDuplicate(*w   , &v2); CHKERRQ(ierr);
   ierr = MatCreateVecs(*B, NULL, &v3); CHKERRQ(ierr);
 
-  //ierr = VecPointwiseMult(v3, sigma, *w); CHKERRQ(ierr);
-  ierr = MatMult(*K, v3, v1); CHKERRQ(ierr);
+  ierr = VecPointwiseMult(v1, sigma, *w); CHKERRQ(ierr);
+  ierr = MatMult(*K, v1, v2); CHKERRQ(ierr);
 
-  ierr = MatMult(*B, *q, v2); CHKERRQ(ierr);
-  //ierr = VecPointwiseMult(v2, v3, *w); CHKERRQ(ierr);
-  ierr = VecAXPY(v1, 1.0, v2); CHKERRQ(ierr);
-  ierr = VecScale(v1, -1.0); CHKERRQ(ierr);
-  ierr = VecDuplicate(v1, &En); CHKERRQ(ierr);
-  ierr = VecCopy(v1, En); CHKERRQ(ierr);
+  ierr = MatMult(*B, *q, v3); CHKERRQ(ierr);
+
+  ierr = VecAXPY(v3, -1.0, v2); CHKERRQ(ierr);
+
+  ierr = VecDuplicate(v3, &En); CHKERRQ(ierr);
+  ierr = VecCopy(v3, En); CHKERRQ(ierr);
 
   //compute h(En)
   ierr = VecDuplicate(En, &hEn); CHKERRQ(ierr);
@@ -1491,7 +1491,7 @@ PetscErrorCode FormASCNonlinearMatrix(Vec sigma, Mat *A, NonlinearContext *ctx)
   //ierr = VecView(hEn, PETSC_VIEWER_STDOUT_SELF);
   
   //add h(En) to A
-  //ierr = MatDiagonalSet(*A, hEn, ADD_VALUES); CHKERRQ(ierr);
+  ierr = MatDiagonalSet(*A, hEn, ADD_VALUES); CHKERRQ(ierr);
   
   //printf("val should be %15.15f\n", 1+epsHat/2.);
   //ierr = MatView(*A, PETSC_VIEWER_STDOUT_SELF); CHKERRQ(ierr);
@@ -1555,7 +1555,7 @@ PetscErrorCode NonlinearPicard(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscErr
   PetscReal err = 1; 
   for(int iter=1; iter<=10; ++iter)
   {
-    //printf("\n\nITERATION NUMBER %d\n", iter);
+    printf("\n\nITERATION NUMBER %d\n", iter);
     ierr = (*lhs)(*sol, &A, ctx); CHKERRQ(ierr);
     ierr = (*rhs)(*sol, &b, ctx); CHKERRQ(ierr);
     //ierr = MatView(A, PETSC_VIEWER_STDOUT_SELF);
@@ -1572,7 +1572,7 @@ PetscErrorCode NonlinearPicard(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscErr
     ierr = VecAXPY(errvec, -1.0, *sol); CHKERRQ(ierr);
     ierr = VecNorm(errvec, NORM_2, &err); CHKERRQ(ierr);
     
-    //printf("THE ERROR IS: %15.15f\n", err);
+    printf("THE ERROR IS: %15.15f\n", err);
     //printf("sol:\n");
     //ierr = VecView(*sol, PETSC_VIEWER_STDOUT_SELF); CHKERRQ(ierr);
   }
@@ -1664,7 +1664,7 @@ PetscErrorCode makeBEMPcmQualReactionPotential2(DM dm, BEMType bem, PetscReal ep
   ierr = VecDuplicate(t0, &guess); CHKERRQ(ierr);
   ierr = VecZeroEntries(guess); CHKERRQ(ierr);
   NonlinearContext nctx;
-  HContext         hctx = {.alpha = 0.0, .beta = -60, .gamma = -0.5};
+  HContext         hctx = {.alpha = 0.5, .beta = -60, .gamma = -0.5};
   nctx.pqr    = pqr;
   nctx.epsIn  = epsIn;
   nctx.epsOut = epsOut;

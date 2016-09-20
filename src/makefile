@@ -7,6 +7,9 @@ testSrfOnSurfacePoints: testSrfOnSurfacePoints.o surface.o
 regression:
 	${PETSC_DIR}/config/builder2.py check [testSrfOnSurfacePoints.c,surface.c] --regParams=testParams ${ARGS}
 
+asym_sphere:
+	${PETSC_DIR}/config/builder2.py check [testSrfOnSurfacePoints.c,surface.c] --regParams=asymParams ${ARGS}
+
 figures_sphere:
 	./meshConvergence.py --type=sphere --output=meshConvSphere
 	./workPrecision.py --type=sphere --output=workPrecSphere
