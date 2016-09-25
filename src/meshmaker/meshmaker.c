@@ -1,6 +1,5 @@
 #include "meshmaker.h"
 
-#define MSMS_PATH "/Users/jbardhan/bin/msms"
 
 #define MESHSES_PATH "/Users/jbardhan/bin/frentos/meshses3.prl"
 #define MESHSAS_PATH "/Users/jbardhan/bin/frentos/meshsas3.prl"
