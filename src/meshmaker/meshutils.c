@@ -1,4 +1,5 @@
 #include "meshmaker.h"
+#include <stdarg.h>
 
 /* FFTSVDpbeAPI.c */
 real ionexclusionradius = 0.0f;
