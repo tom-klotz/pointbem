@@ -2,6 +2,7 @@
 #include <petsc/private/dmpleximpl.h>
 #include "constants.h"
 #include "surface.h"
+#include <slepceps.h>
 
 typedef enum {BEM_POINT, BEM_PANEL, BEM_POINT_MF, BEM_PANEL_MF} BEMType;
 
@@ -1532,6 +1533,89 @@ PetscErrorCode CalculateBEMSolvationEnergy(DM dm, const char prefix[], BEMType b
   PetscFunctionReturn(0);
 }
 
+
+#undef __FUNCT__
+#define __FUNCT__ "CalcInertialEllipsoid"
+PetscErrorCode CalcInertialEllipsoid(PetscInt npoints, PQRData *pqr, Vec inertEll)
+{
+  PetscErrorCode ierr;
+  PetscReal mean[3];
+  Vec xyzCopy;
+  PetscReal *coords;
+  Mat cov;
+  EPS eps;
+  EPSType type;
+  PetscFunctionBegin;
+
+  //make a local copy of the xyz vector
+  ierr = VecDuplicate(pqr->xyz, &xyzCopy); CHKERRQ(ierr);
+  ierr = VecCopy(pqr->xyz, xyzCopy); CHKERRQ(ierr);
+  //set pointer to local xyz data
+  ierr = VecGetArray(xyzCopy, &coords); CHKERRQ(ierr);
+
+  //compute means
+  mean[0] = 0; mean[1] = 0; mean[2] = 0;
+  for(PetscInt i=0; i<npoints; ++i) {
+    mean[0] += coords[3*i+0];
+    mean[1] += coords[3*i+1];
+    mean[2] += coords[3*i+2];
+  }
+  mean[0] /= npoints; mean[1] /= npoints; mean[2] /= npoints;
+
+  //copy values of mean to first 3 values in output
+  PetscInt threeVals[3] = {0, 1, 2};
+  ierr = VecSetValues(inertEll, 3, &threeVals, mean, INSERT_VALUES); CHKERRQ(ierr);
+  
+  //calculate covariance matrix
+  ierr = MatCreateSeqDense(PETSC_COMM_SELF, 3, 3, NULL, &cov); CHKERRQ(ierr);
+  ierr = MatZeroEntries(cov); CHKERRQ(ierr);
+  for(PetscInt i=0; i<3; ++i) {
+    for(PetscInt j=0; j<3; ++j) {
+      for(PetscInt k=0; k<npoints; ++k) {
+	PetscReal covVal = (mean[i] - coords[3*k+i])*(mean[j] - coords[3*k+j]);
+	ierr = MatSetValue(cov, i, j, covVal, ADD_VALUES); CHKERRQ(ierr);
+      }
+    }
+  }
+  //assemble cov matrix
+  ierr = MatAssemblyBegin(cov, MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
+  ierr = MatAssemblyEnd(cov, MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
+  ierr = MatScale(cov, 1./(npoints-1)); CHKERRQ(ierr);
+
+  //set up slepc
+  ierr = EPSCreate(PETSC_COMM_WORLD, &eps); CHKERRQ(ierr);
+  ierr = EPSSetOperators(eps, cov, NULL); CHKERRQ(ierr);
+  ierr = EPSSetProblemType(eps, EPS_HEP); CHKERRQ(ierr);
+  ierr = EPSSetFromOptions(eps); CHKERRQ(ierr);
+  ierr = EPSSolve(eps); CHKERRQ(ierr);
+
+  PetscReal er, ei;
+  Vec evr, evi;
+  ierr = VecCreateSeq(PETSC_COMM_SELF, 3, &evr); CHKERRQ(ierr);
+  ierr = VecCreateSeq(PETSC_COMM_SELF, 4, &evi); CHKERRQ(ierr);
+  for(PetscInt i=0; i<3; ++i) {
+    //printf("i: %d\n", i);
+    ierr = EPSGetEigenpair(eps, i, &er, &ei, evr, evi); CHKERRQ(ierr);
+    ierr = VecView(evr, PETSC_VIEWER_DEFAULT); CHKERRQ(ierr);
+    printf("eigenvalue: %15.15f\n", PetscSqrtReal(er));
+    printf("singular value: %15.15f\n", er);
+  }
+
+  //output to file
+  FILE *fp;
+
+
+  //assemble final ellipsoid vec
+  ierr = VecAssemblyBegin(inertEll); CHKERRQ(ierr);
+  ierr = VecAssemblyEnd(inertEll); CHKERRQ(ierr);
+
+  ierr = MatDestroy(&cov); CHKERRQ(ierr);
+  ierr = VecDestroy(&evr); CHKERRQ(ierr);
+  ierr = VecDestroy(&evi); CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+
 #undef __FUNCT__
 #define __FUNCT__ "main"
 int main(int argc, char **argv)
@@ -1555,7 +1639,8 @@ int main(int argc, char **argv)
   PetscLogStage    stageSimple, stageSurf, stageSurfMF, stagePanel, stageMSP;
   PetscErrorCode   ierr;
 
-  ierr = PetscInitialize(&argc, &argv, NULL, NULL);CHKERRQ(ierr);
+  //ierr = PetscInitialize(&argc, &argv, NULL, NULL);CHKERRQ(ierr);
+  ierr = SlepcInitialize(&argc, &argv, NULL, NULL); CHKERRQ(ierr);
   ierr = PetscLogDefaultBegin();CHKERRQ(ierr);
   ierr = ProcessOptions(PETSC_COMM_WORLD, &ctx);CHKERRQ(ierr);
   /* Make PQR */
@@ -1583,6 +1668,13 @@ int main(int argc, char **argv)
     ierr = VecGetSize(msp.weights, &Nv);CHKERRQ(ierr);
     ierr = PetscPrintf(PETSC_COMM_WORLD, "MSP %D vertices\n", Nv);CHKERRQ(ierr);
   }
+
+  Vec inertEll;
+  ierr = VecCreateSeq(MPI_COMM_SELF, 12, &inertEll); CHKERRQ(ierr);
+  //ierr = VecSetType(inert, PETSC_
+  //calculate center of mass
+  ierr = CalcInertialEllipsoid(ctx.numCharges, &pqr, inertEll); CHKERRQ(ierr);
+
   /* Calculate solvation energy */
   ierr = PetscLogStageRegister("Point Surface", &stageSurf);CHKERRQ(ierr);
   ierr = PetscLogStageRegister("Point Surface MF", &stageSurfMF);CHKERRQ(ierr);

@@ -1,7 +1,7 @@
 CFLAGS = -I.
 
 testSrfOnSurfacePoints: testSrfOnSurfacePoints.o surface.o
-	${CLINKER} -o $@ $^ ${PETSC_LIB}
+	${CLINKER} -o $@ $^ ${PETSC_LIB} ${SLEPC_SYS_LIB}
 	${DSYMUTIL} $@
 
 regression:
@@ -37,3 +37,4 @@ msp:
 
 include ${PETSC_DIR}/lib/petsc/conf/variables
 include ${PETSC_DIR}/lib/petsc/conf/rules
+include ${SLEPC_DIR}/lib/slepc/conf/slepc_common
