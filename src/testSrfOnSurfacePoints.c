@@ -1536,16 +1536,21 @@ PetscErrorCode CalculateBEMSolvationEnergy(DM dm, const char prefix[], BEMType b
 
 #undef __FUNCT__
 #define __FUNCT__ "CalcInertialEllipsoid"
-PetscErrorCode CalcInertialEllipsoid(PetscInt npoints, PQRData *pqr, Vec inertEll)
+PetscErrorCode CalcInertialEllipsoid(PQRData *pqr, Vec inertEll)
 {
   PetscErrorCode ierr;
   PetscReal mean[3];
+  PetscInt numPoints;
   Vec xyzCopy;
   PetscReal *coords;
   Mat cov;
+  Mat fact;
   EPS eps;
-  EPSType type;
   PetscFunctionBegin;
+
+  //get size of xyz data
+  ierr = VecGetSize(pqr->xyz, &numPoints); CHKERRQ(ierr);
+  numPoints /= 3;
 
   //make a local copy of the xyz vector
   ierr = VecDuplicate(pqr->xyz, &xyzCopy); CHKERRQ(ierr);
@@ -1555,12 +1560,12 @@ PetscErrorCode CalcInertialEllipsoid(PetscInt npoints, PQRData *pqr, Vec inertEl
 
   //compute means
   mean[0] = 0; mean[1] = 0; mean[2] = 0;
-  for(PetscInt i=0; i<npoints; ++i) {
+  for(PetscInt i=0; i<numPoints; ++i) {
     mean[0] += coords[3*i+0];
     mean[1] += coords[3*i+1];
     mean[2] += coords[3*i+2];
   }
-  mean[0] /= npoints; mean[1] /= npoints; mean[2] /= npoints;
+  mean[0] /= numPoints; mean[1] /= numPoints; mean[2] /= numPoints;
 
   //copy values of mean to first 3 values in output
   PetscInt threeVals[3] = {0, 1, 2};
@@ -1571,7 +1576,7 @@ PetscErrorCode CalcInertialEllipsoid(PetscInt npoints, PQRData *pqr, Vec inertEl
   ierr = MatZeroEntries(cov); CHKERRQ(ierr);
   for(PetscInt i=0; i<3; ++i) {
     for(PetscInt j=0; j<3; ++j) {
-      for(PetscInt k=0; k<npoints; ++k) {
+      for(PetscInt k=0; k<numPoints; ++k) {
 	PetscReal covVal = (mean[i] - coords[3*k+i])*(mean[j] - coords[3*k+j]);
 	ierr = MatSetValue(cov, i, j, covVal, ADD_VALUES); CHKERRQ(ierr);
       }
@@ -1580,7 +1585,8 @@ PetscErrorCode CalcInertialEllipsoid(PetscInt npoints, PQRData *pqr, Vec inertEl
   //assemble cov matrix
   ierr = MatAssemblyBegin(cov, MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
   ierr = MatAssemblyEnd(cov, MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
-  ierr = MatScale(cov, 1./(npoints-1)); CHKERRQ(ierr);
+  //scale cov matrix
+  ierr = MatScale(cov, 1./(numPoints-1)); CHKERRQ(ierr);
 
   //set up slepc
   ierr = EPSCreate(PETSC_COMM_WORLD, &eps); CHKERRQ(ierr);
@@ -1588,28 +1594,52 @@ PetscErrorCode CalcInertialEllipsoid(PetscInt npoints, PQRData *pqr, Vec inertEl
   ierr = EPSSetProblemType(eps, EPS_HEP); CHKERRQ(ierr);
   ierr = EPSSetFromOptions(eps); CHKERRQ(ierr);
   ierr = EPSSolve(eps); CHKERRQ(ierr);
-
+  //ierr = EPView(svd,PETSC_VIEWER_STDOUT_SELF); CHKERRQ(ierr);
+  //ierr = SVDVectorsView(svd, PETSC_VIEWER_STDOUT_SELF); CHKERRQ(ierr);
   PetscReal er, ei;
   Vec evr, evi;
   ierr = VecCreateSeq(PETSC_COMM_SELF, 3, &evr); CHKERRQ(ierr);
   ierr = VecCreateSeq(PETSC_COMM_SELF, 4, &evi); CHKERRQ(ierr);
+  PetscReal *tmp;
+  Mat U;
+  ierr = MatDuplicate(cov, MAT_DO_NOT_COPY_VALUES, &U); CHKERRQ(ierr);
+  ierr = MatZeroEntries(cov); CHKERRQ(ierr);
   for(PetscInt i=0; i<3; ++i) {
     //printf("i: %d\n", i);
     ierr = EPSGetEigenpair(eps, i, &er, &ei, evr, evi); CHKERRQ(ierr);
-    ierr = VecView(evr, PETSC_VIEWER_DEFAULT); CHKERRQ(ierr);
-    printf("eigenvalue: %15.15f\n", PetscSqrtReal(er));
-    printf("singular value: %15.15f\n", er);
+    ierr = VecGetArray(evr, &tmp); CHKERRQ(ierr);
+    ierr = MatSetValues(U, 3, &threeVals, 1, &i, tmp, INSERT_VALUES); CHKERRQ(ierr);
   }
+  ierr = MatAssemblyBegin(U, MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
+  ierr = MatAssemblyEnd(U, MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
+  
+  
+  ierr = MatView(U, PETSC_VIEWER_STDOUT_SELF); CHKERRQ(ierr);
+  
+
 
   //output to file
   FILE *fp;
-
+  fp = fopen("out1.txt", "w");
+  
+  
+  printf("NPTS: %d\n", numPoints);
+  for(PetscInt i=0; i<numPoints; ++i) {
+    for(PetscInt j=0; j<3; ++j)
+      fprintf(fp, "%15.15f ", coords[i*3+j]);
+    fprintf(fp, "\n");
+  }
+  fclose(fp);
+  
+  
+  //printf("\n\nWOWOWOWOWOW\n\n");
 
   //assemble final ellipsoid vec
   ierr = VecAssemblyBegin(inertEll); CHKERRQ(ierr);
   ierr = VecAssemblyEnd(inertEll); CHKERRQ(ierr);
 
   ierr = MatDestroy(&cov); CHKERRQ(ierr);
+  ierr = MatDestroy(&U);   CHKERRQ(ierr);
   ierr = VecDestroy(&evr); CHKERRQ(ierr);
   ierr = VecDestroy(&evi); CHKERRQ(ierr);
   PetscFunctionReturn(0);
@@ -1673,7 +1703,7 @@ int main(int argc, char **argv)
   ierr = VecCreateSeq(MPI_COMM_SELF, 12, &inertEll); CHKERRQ(ierr);
   //ierr = VecSetType(inert, PETSC_
   //calculate center of mass
-  ierr = CalcInertialEllipsoid(ctx.numCharges, &pqr, inertEll); CHKERRQ(ierr);
+  ierr = CalcInertialEllipsoid(&pqr, inertEll); CHKERRQ(ierr);
 
   /* Calculate solvation energy */
   ierr = PetscLogStageRegister("Point Surface", &stageSurf);CHKERRQ(ierr);
