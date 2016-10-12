@@ -86,11 +86,11 @@ PetscErrorCode ProcessOptions(MPI_Comm comm, SolvationContext *ctx)
 
 #undef __FUNCT__
 #define __FUNCT__ "PQRCreateFromPDB"
-PetscErrorCode PQRCreateFromPDB(MPI_Comm comm, const char pdbFile[], const char crgFile[], PQRData *pqr)
+PetscErrorCode PQRCreateFromPDB(MPI_Comm comm, const char pdbFile[], const char crgFile[], const char sizFile[], PQRData *pqr)
 {
-  PetscViewer    viewerPDB, viewerCRG;
+  PetscViewer    viewerPDB, viewerCRG, viewerSIZ;
   PetscScalar   *q, *x;
-  PetscReal     *charges, *coords;
+  PetscReal     *charges, *coords, *Rpoint;
   PetscInt       n = 0, i, d;
   PetscMPIInt    rank;
   PetscErrorCode ierr;
@@ -197,11 +197,40 @@ PetscErrorCode PQRCreateFromPDB(MPI_Comm comm, const char pdbFile[], const char 
     ierr = PetscViewerDestroy(&viewerCRG);CHKERRQ(ierr);
   }
 
+  ierr = VecCreateSeq(comm, n, &pqr->R); CHKERRQ(ierr);
+  if(sizFile) {
+    ierr = PetscViewerCreate(comm, &viewerSIZ); CHKERRQ(ierr);
+    ierr = PetscViewerSetType(viewerSIZ, PETSCVIEWERASCII); CHKERRQ(ierr);
+    ierr = PetscViewerFileSetMode(viewerSIZ, FILE_MODE_READ); CHKERRQ(ierr);
+    ierr = PetscViewerFileSetName(viewerSIZ, sizFile); CHKERRQ(ierr);
+    if(!rank) {
+      char buf[128];
+      PetscInt cnt = 1;
+
+      ierr = VecGetArray(pqr->R, &Rpoint); CHKERRQ(ierr);
+      for(i = -1; i < n; ++i) {
+	double tmp;
+	PetscInt c = 0;
+
+	/* Read line */
+        do {ierr = PetscViewerRead(viewerSIZ, &buf[c++], 1, &cnt, PETSC_CHAR);CHKERRQ(ierr);}
+        while (buf[c-1] != '\n' && buf[c-1] != '\0' && cnt);
+        if (!cnt) break;
+        if (i < 0) continue;
+        buf[22] = '\0';
+        ierr = sscanf(&buf[14], "%lg", &tmp); if (ierr != 1) SETERRQ2(comm, PETSC_ERR_ARG_WRONG, "Could not read charge for line %d of CRG file %", i+1, crgFile);
+      }
+    }
+  }
+    
+  
+  
   ierr = VecDuplicate(pqr->q, &pqr->R);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) pqr->R, "Atomic radii");CHKERRQ(ierr);
   ierr = VecSet(pqr->R, 0.0);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
+
 
 #undef __FUNCT__
 #define __FUNCT__ "PQRViewFromOptions"
@@ -1357,7 +1386,7 @@ PetscErrorCode makeBEMPcmQualReactionPotential(DM dm, BEMType bem, PetscReal eps
 {
   const PetscReal epsHat = (epsIn + epsOut)/(epsIn - epsOut);
   SNES            snes;
-  Mat             J, A, Bp, B, C, S, fact;
+  Mat             J, A, Bp, B, C;
   Vec             d, t0, t1, t2;
   PetscErrorCode  ierr;
 
@@ -1524,6 +1553,7 @@ PetscErrorCode CalculateBEMSolvationEnergy(DM dm, const char prefix[], BEMType b
   case BEM_PANEL_MF:
     ierr = DMGetCoordinatesLocal(dm, &coords);CHKERRQ(ierr);
     ierr = makeBEMPcmQualReactionPotential(dm, bem, epsIn, epsOut, pqr, coords, w, n, react);CHKERRQ(ierr);
+    L = NULL;
     ierr = PetscLogEventBegin(CalcE_Event, L, react, pqr->q, 0);CHKERRQ(ierr);
     break;
   }
@@ -1535,8 +1565,13 @@ PetscErrorCode CalculateBEMSolvationEnergy(DM dm, const char prefix[], BEMType b
 
 
 #undef __FUNCT__
-#define __FUNCT__ "CalcInertialEllipsoid"
-PetscErrorCode CalcInertialEllipsoid(PQRData *pqr, Vec inertEll)
+#define __FUNCT__ "CalcPointParameters"
+/*
+  Matrix T represents matrix which transforms data to be in line with coordinate axes
+  center is 3-vector containing the center of point cloud for translation
+  abs is 3-vector containing the magnitude of the principal directions (later scaled together)
+ */
+PetscErrorCode CalcPointParameters(Vec xyz, Vec center, Vec abc, Mat T)
 {
   PetscErrorCode ierr;
   PetscReal mean[3];
@@ -1544,17 +1579,16 @@ PetscErrorCode CalcInertialEllipsoid(PQRData *pqr, Vec inertEll)
   Vec xyzCopy;
   PetscReal *coords;
   Mat cov;
-  Mat fact;
   EPS eps;
   PetscFunctionBegin;
 
   //get size of xyz data
-  ierr = VecGetSize(pqr->xyz, &numPoints); CHKERRQ(ierr);
+  ierr = VecGetSize(xyz, &numPoints); CHKERRQ(ierr);
   numPoints /= 3;
 
   //make a local copy of the xyz vector
-  ierr = VecDuplicate(pqr->xyz, &xyzCopy); CHKERRQ(ierr);
-  ierr = VecCopy(pqr->xyz, xyzCopy); CHKERRQ(ierr);
+  ierr = VecDuplicate(xyz, &xyzCopy); CHKERRQ(ierr);
+  ierr = VecCopy(xyz, xyzCopy); CHKERRQ(ierr);
   //set pointer to local xyz data
   ierr = VecGetArray(xyzCopy, &coords); CHKERRQ(ierr);
 
@@ -1567,9 +1601,9 @@ PetscErrorCode CalcInertialEllipsoid(PQRData *pqr, Vec inertEll)
   }
   mean[0] /= numPoints; mean[1] /= numPoints; mean[2] /= numPoints;
 
-  //copy values of mean to first 3 values in output
+  //copy values of mean to vector
   PetscInt threeVals[3] = {0, 1, 2};
-  ierr = VecSetValues(inertEll, 3, &threeVals, mean, INSERT_VALUES); CHKERRQ(ierr);
+  ierr = VecSetValues(center, 3, &threeVals[0], mean, INSERT_VALUES); CHKERRQ(ierr);
   
   //calculate covariance matrix
   ierr = MatCreateSeqDense(PETSC_COMM_SELF, 3, 3, NULL, &cov); CHKERRQ(ierr);
@@ -1601,20 +1635,32 @@ PetscErrorCode CalcInertialEllipsoid(PQRData *pqr, Vec inertEll)
   ierr = VecCreateSeq(PETSC_COMM_SELF, 3, &evr); CHKERRQ(ierr);
   ierr = VecCreateSeq(PETSC_COMM_SELF, 4, &evi); CHKERRQ(ierr);
   PetscReal *tmp;
-  Mat U;
-  ierr = MatDuplicate(cov, MAT_DO_NOT_COPY_VALUES, &U); CHKERRQ(ierr);
-  ierr = MatZeroEntries(cov); CHKERRQ(ierr);
+  //Mat U;
+  //ierr = MatDuplicate(cov, MAT_DO_NOT_COPY_VALUES, &U); CHKERRQ(ierr);
+  ierr = MatZeroEntries(T); CHKERRQ(ierr);
+  PetscInt nconv;
+  ierr = EPSGetConverged(eps, &nconv); CHKERRQ(ierr);
+  //printf("NUM CONVERGED: %d\n", nconv);
   for(PetscInt i=0; i<3; ++i) {
     //printf("i: %d\n", i);
+
     ierr = EPSGetEigenpair(eps, i, &er, &ei, evr, evi); CHKERRQ(ierr);
+    er = PetscSqrtReal(er);
+    ierr = VecSetValues(abc, 1, &i, &er, INSERT_VALUES); CHKERRQ(ierr);
     ierr = VecGetArray(evr, &tmp); CHKERRQ(ierr);
-    ierr = MatSetValues(U, 3, &threeVals, 1, &i, tmp, INSERT_VALUES); CHKERRQ(ierr);
+    ierr = MatSetValues(T, 3, &threeVals[0], 1, &i, tmp, INSERT_VALUES); CHKERRQ(ierr);
+    //printf("EIGENV %d:\n", i);
+    //ierr = VecView(evr, PETSC_VIEWER_STDOUT_SELF); CHKERRQ(ierr);
+    ierr = VecRestoreArray(evr, &tmp); CHKERRQ(ierr);
   }
-  ierr = MatAssemblyBegin(U, MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
-  ierr = MatAssemblyEnd(U, MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
+  ierr = MatAssemblyBegin(T, MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
+  ierr = MatAssemblyEnd(T, MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
+  ierr = VecAssemblyBegin(abc); CHKERRQ(ierr);
+  ierr = VecAssemblyEnd(abc); CHKERRQ(ierr);
   
   
-  ierr = MatView(U, PETSC_VIEWER_STDOUT_SELF); CHKERRQ(ierr);
+  ierr = MatTranspose(T, MAT_REUSE_MATRIX, &T); CHKERRQ(ierr);
+
   
 
 
@@ -1622,11 +1668,10 @@ PetscErrorCode CalcInertialEllipsoid(PQRData *pqr, Vec inertEll)
   FILE *fp;
   fp = fopen("out1.txt", "w");
   
-  
-  printf("NPTS: %d\n", numPoints);
   for(PetscInt i=0; i<numPoints; ++i) {
-    for(PetscInt j=0; j<3; ++j)
+    for(PetscInt j=0; j<3; ++j) {
       fprintf(fp, "%15.15f ", coords[i*3+j]);
+    }
     fprintf(fp, "\n");
   }
   fclose(fp);
@@ -1635,14 +1680,176 @@ PetscErrorCode CalcInertialEllipsoid(PQRData *pqr, Vec inertEll)
   //printf("\n\nWOWOWOWOWOW\n\n");
 
   //assemble final ellipsoid vec
-  ierr = VecAssemblyBegin(inertEll); CHKERRQ(ierr);
-  ierr = VecAssemblyEnd(inertEll); CHKERRQ(ierr);
+  ierr = VecAssemblyBegin(center); CHKERRQ(ierr);
+  ierr = VecAssemblyEnd(center); CHKERRQ(ierr);
+  ierr = VecAssemblyBegin(abc); CHKERRQ(ierr);
+  ierr = VecAssemblyEnd(abc); CHKERRQ(ierr);
 
   ierr = MatDestroy(&cov); CHKERRQ(ierr);
-  ierr = MatDestroy(&U);   CHKERRQ(ierr);
   ierr = VecDestroy(&evr); CHKERRQ(ierr);
   ierr = VecDestroy(&evi); CHKERRQ(ierr);
   PetscFunctionReturn(0);
+}
+
+
+#undef __FUNCT__
+#define __FUNCT__ "GenerateSpherePoints"
+/*
+  generates vector of N*N*nP points where each input point has N*N points surrounding it
+*/
+PetscErrorCode GenerateSpherePoints(Vec xyz, Vec r, Vec *sPoints)
+{
+  const PetscInt N = 5;
+  PetscErrorCode ierr;
+  PetscInt nP;
+  PetscReal rad;
+  PetscReal theta;
+  PetscReal phi;
+  PetscReal pX, pY, pZ;
+  PetscScalar *sPointsVec;
+  PetscScalar *xyzVec;
+  PetscScalar center[3];
+  PetscFunctionBegin;
+  ierr = VecGetSize(xyz, &nP); CHKERRQ(ierr);
+  nP = nP/3;
+  
+  ierr = VecCreateSeq(PETSC_COMM_SELF, 3*N*N*nP, sPoints); CHKERRQ(ierr);
+  ierr = VecGetArray(*sPoints, &sPointsVec); CHKERRQ(ierr);
+  ierr = VecGetArray(xyz, &xyzVec); CHKERRQ(ierr);
+  PetscInt index = 0;
+  for(PetscInt n=0; n<nP; ++n) {
+    ierr = VecGetValues(r, 1, &n, &rad); CHKERRQ(ierr);
+    printf("RAD: %15.15f\n", rad);
+    center[0] = xyzVec[3*n+0];
+    center[1] = xyzVec[3*n+1];
+    center[2] = xyzVec[3*n+2];
+    for(PetscInt i=0; i<N; ++i) {
+      theta = (2*PETSC_PI/N)*i;
+      for(PetscInt j=0; j<N; ++j) {
+	phi = (PETSC_PI/N)*j;
+	pX = center[0] + rad*PetscCosReal(theta)*PetscSinReal(phi);
+	pY = center[1] + rad*PetscSinReal(theta)*PetscSinReal(phi);
+	pZ = center[2] + rad*PetscCosReal(phi);
+	ierr = VecSetValue(*sPoints, 3*index+0, pX, INSERT_VALUES); CHKERRQ(ierr);
+	ierr = VecSetValue(*sPoints, 3*index+1, pY, INSERT_VALUES); CHKERRQ(ierr);
+	ierr = VecSetValue(*sPoints, 3*index+2, pZ, INSERT_VALUES); CHKERRQ(ierr);
+	index++;
+      }
+    }
+  }
+  ierr = VecAssemblyBegin(*sPoints); CHKERRQ(ierr);
+  ierr = VecAssemblyEnd(*sPoints); CHKERRQ(ierr);
+  ierr = VecRestoreArray(xyz, &xyzVec); CHKERRQ(ierr);
+  ierr = VecRestoreArray(*sPoints, &sPointsVec); CHKERRQ(ierr);
+
+  PetscFunctionReturn(0);
+}
+
+
+#undef __FUNCT__ 
+#define __FUNCT__ "CalcInertialEllipsoid"
+PetscErrorCode CalcInertialEllipsoid(PQRData *pqr, Vec center, Vec abc, Mat T)
+{
+  PetscErrorCode ierr;
+  Vec xyzCopy, xyzTemp;
+  Vec sPoints;
+  PetscScalar *xyzP;
+  const  PetscScalar *sPointsVec;
+  PetscInt npts;
+  PetscReal xc, yc, zc;
+  PetscReal sX, sY, sZ;
+  Mat P;
+  Mat Ptemp;
+
+  PetscFunctionBegin;
+
+  
+  //get size of xyz
+  ierr = VecGetSize(pqr->xyz, &npts); CHKERRQ(ierr);
+  npts = npts/3;
+  
+  //first make a copy of pqr->xyz
+  ierr = VecDuplicate(pqr->xyz, &xyzCopy); CHKERRQ(ierr);
+  ierr = VecDuplicate(pqr->xyz, &xyzTemp);
+  ierr = VecCopy(pqr->xyz, xyzCopy); CHKERRQ(ierr);
+
+  //call CalcPointParameters
+  ierr = CalcPointParameters(xyzCopy, center, abc, T); CHKERRQ(ierr);
+  
+
+  //translate points from calculated center
+  PetscInt count=0;
+  ierr = VecGetValues(center, 1, &count, &xc); CHKERRQ(ierr); count++;
+  ierr = VecGetValues(center, 1, &count, &yc); CHKERRQ(ierr); count++;
+  ierr = VecGetValues(center, 1, &count, &zc); CHKERRQ(ierr);
+  for(PetscInt i=0; i<npts; ++i) {
+    ierr = VecSetValue(xyzCopy, 3*i+0, -xc, ADD_VALUES); CHKERRQ(ierr);
+    ierr = VecSetValue(xyzCopy, 3*i+1, -yc, ADD_VALUES); CHKERRQ(ierr);
+    ierr = VecSetValue(xyzCopy, 3*i+2, -zc, ADD_VALUES); CHKERRQ(ierr);
+  }
+  ierr = VecAssemblyBegin(xyzCopy); CHKERRQ(ierr); ierr = VecAssemblyEnd(xyzCopy); CHKERRQ(ierr);
+
+  //load points into P
+  ierr = MatCreateSeqDense(PETSC_COMM_SELF, 3, npts, NULL, &P); CHKERRQ(ierr);
+  //ierr = MatDuplicate(P, &Ptemp); CHKERRQ(ierr);
+  ierr = VecGetArray(xyzCopy, &xyzP); CHKERRQ(ierr);
+  for(int i=0; i<3; ++i) {
+    for(int j=0; j<npts; ++j) {
+      ierr = MatSetValue(P, i, j, xyzP[3*j+i], INSERT_VALUES); CHKERRQ(ierr);
+    }
+  }
+  ierr = MatAssemblyBegin(P, MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
+  ierr = MatAssemblyEnd(P, MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
+  ierr = VecRestoreArray(xyzCopy, &xyzP); CHKERRQ(ierr);
+
+  //rotate points with T matrix
+  ierr = MatMatMult(T, P, MAT_INITIAL_MATRIX, PETSC_DEFAULT, &Ptemp); CHKERRQ(ierr);
+  ierr = MatCopy(Ptemp, P, SAME_NONZERO_PATTERN); CHKERRQ(ierr);
+
+  //write transformed points to file
+  FILE *fp;
+  fp = fopen("ellData.txt", "w");
+  fprintf(fp, "wow!\n");
+  fclose(fp);
+  
+  
+
+  //assuming P is column-major
+  ierr = MatDenseGetArray(Ptemp, &xyzP); CHKERRQ(ierr);
+  PetscInt *ind;
+  ierr = PetscMalloc(sizeof(PetscInt)*npts*3, &ind);
+  //printf("NPTS: %d\n", npts);
+  for(int i=0; i<3*npts; ++i)
+    ind[i] = i;
+  ierr = VecSetValues(xyzCopy, 3*npts, ind, xyzP, INSERT_VALUES); CHKERRQ(ierr);
+  ierr = VecAssemblyBegin(xyzCopy); CHKERRQ(ierr);
+  ierr = VecAssemblyEnd(xyzCopy); CHKERRQ(ierr);
+  ierr = MatDenseRestoreArray(Ptemp, &xyzP); CHKERRQ(ierr);
+
+  //### GENERATES POINTS ON SPHERES ###
+  ierr = GenerateSpherePoints(xyzCopy, pqr->R, &sPoints); //generatespherepoints sets the size of sPoints
+  
+  PetscInt nSpherePoints;
+  ierr = VecGetSize(sPoints, &nSpherePoints); CHKERRQ(ierr);		    
+  nSpherePoints = nSpherePoints/3;
+  ierr = VecGetArrayRead(sPoints, &sPointsVec); CHKERRQ(ierr);
+  for(int n=0; n<nSpherePoints; ++n) {
+    sX = sPointsVec[3*n+0];
+    sY = sPointsVec[3*n+1];
+    sZ = sPointsVec[3*n+2];
+    //printf("x: %15.15f y: %15.15f z: %15.15f\n", sX, sY, sZ);
+    //check if each point is inside the ellipsoid
+    
+  }
+  ierr = VecRestoreArrayRead(sPoints, &sPointsVec); CHKERRQ(ierr);
+  
+  ierr = PetscFree(ind); CHKERRQ(ierr);
+  ierr = MatDestroy(&Ptemp); CHKERRQ(ierr);
+  ierr = MatDestroy(&P); CHKERRQ(ierr);
+  ierr = VecDestroy(&xyzCopy); CHKERRQ(ierr);
+  ierr = VecDestroy(&xyzTemp); CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+
 }
 
 
@@ -1651,18 +1858,18 @@ PetscErrorCode CalcInertialEllipsoid(PQRData *pqr, Vec inertEll)
 int main(int argc, char **argv)
 {
   /* Constants */
-  const PetscReal  q     = ELECTRON_CHARGE;
-  const PetscReal  Na    = AVOGADRO_NUMBER;
-  const PetscReal  JperC = 4.184; /* Jouled/Calorie */
-  const PetscReal  kB    = Na * BOLTZMANN_K/4.184/1000.0; /* Now in kcal/K/mol */
-  const PetscReal  cf    = Na * (q*q/EPSILON_0)/JperC * (1e10/1000) * 1/4/PETSC_PI; /* kcal ang/mol */
+  //const PetscReal  q     = ELECTRON_CHARGE;
+  //const PetscReal  Na    = AVOGADRO_NUMBER;
+  //const PetscReal  JperC = 4.184; /* Jouled/Calorie */
+  //const PetscReal  kB    = Na * BOLTZMANN_K/4.184/1000.0; /* Now in kcal/K/mol */
+  //const PetscReal  cf    = Na * (q*q/EPSILON_0)/JperC * (1e10/1000) * 1/4/PETSC_PI; /* kcal ang/mol */
   /* Problem data */
-  DM               dm, dmSimple;
+  DM               dm;//, dmSimple;
   PQRData          pqr;
   PetscSurface     msp;
   Vec              panelAreas, vertWeights, vertNormals, react;
   PetscReal        totalArea;
-  PetscInt         Np;
+  //PetscInt         Np;
   SolvationContext ctx;
   /* Solvation Energies */
   PetscScalar      Eref = 0.0, ESimple = 0.0, ESurf = 0.0, ESurfMF = 0.0, EPanel = 0.0, EMSP = 0.0;
@@ -1678,7 +1885,7 @@ int main(int argc, char **argv)
     ierr = makeSphereChargeDistribution(ctx.R, ctx.numCharges, ctx.h, PETSC_DETERMINE, &pqr);CHKERRQ(ierr);
     ierr = PQRViewFromOptions(&pqr);CHKERRQ(ierr);
   } else {
-    ierr = PQRCreateFromPDB(PETSC_COMM_WORLD, ctx.pdbFile, ctx.crgFile, &pqr);CHKERRQ(ierr);
+    ierr = PQRCreateFromPDB(PETSC_COMM_WORLD, ctx.pdbFile, ctx.crgFile, "../geometry/arg.siz", &pqr);CHKERRQ(ierr);
   }
   ierr = VecDuplicate(pqr.q, &react);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) react, "Reaction Potential");CHKERRQ(ierr);
@@ -1699,12 +1906,16 @@ int main(int argc, char **argv)
     ierr = PetscPrintf(PETSC_COMM_WORLD, "MSP %D vertices\n", Nv);CHKERRQ(ierr);
   }
 
-  Vec inertEll;
-  ierr = VecCreateSeq(MPI_COMM_SELF, 12, &inertEll); CHKERRQ(ierr);
+  Vec center, abc;
+  Mat T;
+  ierr = VecCreateSeq(MPI_COMM_SELF, 3, &center); CHKERRQ(ierr);
+  ierr = VecCreateSeq(MPI_COMM_SELF, 3, &abc); CHKERRQ(ierr);
+  ierr = MatCreateSeqDense(MPI_COMM_SELF, 3, 3, NULL, &T); CHKERRQ(ierr);
   //ierr = VecSetType(inert, PETSC_
   //calculate center of mass
-  ierr = CalcInertialEllipsoid(&pqr, inertEll); CHKERRQ(ierr);
-
+  //ierr = LoadSizIntoPQR(MPI_COMM_SELF, &pqr, "../geometry/arg.siz"); CHKERRQ(ierr);
+  ierr = CalcInertialEllipsoid(&pqr, center, abc, T); CHKERRQ(ierr);
+  //ierr = VecView(pqr.R, PETSC_VIEWER_STDOUT_SELF); CHKERRQ(ierr);
   /* Calculate solvation energy */
   ierr = PetscLogStageRegister("Point Surface", &stageSurf);CHKERRQ(ierr);
   ierr = PetscLogStageRegister("Point Surface MF", &stageSurfMF);CHKERRQ(ierr);
@@ -1773,6 +1984,7 @@ int main(int argc, char **argv)
                                           stageLog->stageInfo[stageSimple].perfInfo.flops, stageLog->stageInfo[stageSimple].eventLog->eventInfo[CalcStoS_Event].flops);CHKERRQ(ierr);
     }
   }
+
   /* Cleanup */
   ierr = VecDestroy(&vertWeights);CHKERRQ(ierr);
   ierr = VecDestroy(&vertNormals);CHKERRQ(ierr);
