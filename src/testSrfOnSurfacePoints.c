@@ -208,7 +208,7 @@ PetscErrorCode PQRCreateFromPDB(MPI_Comm comm, const char pdbFile[], const char 
       PetscInt cnt = 1;
 
       ierr = VecGetArray(pqr->R, &Rpoint); CHKERRQ(ierr);
-      for(i = -1; i < n; ++i) {
+      for(i = 0; i < n; ++i) {
 	double tmp;
 	PetscInt c = 0;
 
@@ -216,18 +216,17 @@ PetscErrorCode PQRCreateFromPDB(MPI_Comm comm, const char pdbFile[], const char 
         do {ierr = PetscViewerRead(viewerSIZ, &buf[c++], 1, &cnt, PETSC_CHAR);CHKERRQ(ierr);}
         while (buf[c-1] != '\n' && buf[c-1] != '\0' && cnt);
         if (!cnt) break;
-        if (i < 0) continue;
         buf[22] = '\0';
-        ierr = sscanf(&buf[14], "%lg", &tmp); if (ierr != 1) SETERRQ2(comm, PETSC_ERR_ARG_WRONG, "Could not read charge for line %d of CRG file %", i+1, crgFile);
+	//printf("buf is: %s\n", buf);
+        ierr = sscanf(&buf[4], "%lg", &tmp); if (ierr != 1) SETERRQ2(comm, PETSC_ERR_ARG_WRONG, "Could not read radius for line %d of SIZ file %", i+1, crgFile);
+	Rpoint[i] = tmp;
       }
+      ierr = VecRestoreArray(pqr->R, &Rpoint); CHKERRQ(ierr);
     }
+    ierr = PetscViewerDestroy(&viewerSIZ); CHKERRQ(ierr);
   }
-    
-  
-  
-  ierr = VecDuplicate(pqr->q, &pqr->R);CHKERRQ(ierr);
-  ierr = PetscObjectSetName((PetscObject) pqr->R, "Atomic radii");CHKERRQ(ierr);
-  ierr = VecSet(pqr->R, 0.0);CHKERRQ(ierr);
+
+
   PetscFunctionReturn(0);
 }
 
@@ -1682,8 +1681,6 @@ PetscErrorCode CalcPointParameters(Vec xyz, Vec center, Vec abc, Mat T)
   //assemble final ellipsoid vec
   ierr = VecAssemblyBegin(center); CHKERRQ(ierr);
   ierr = VecAssemblyEnd(center); CHKERRQ(ierr);
-  ierr = VecAssemblyBegin(abc); CHKERRQ(ierr);
-  ierr = VecAssemblyEnd(abc); CHKERRQ(ierr);
 
   ierr = MatDestroy(&cov); CHKERRQ(ierr);
   ierr = VecDestroy(&evr); CHKERRQ(ierr);
@@ -1699,7 +1696,7 @@ PetscErrorCode CalcPointParameters(Vec xyz, Vec center, Vec abc, Mat T)
 */
 PetscErrorCode GenerateSpherePoints(Vec xyz, Vec r, Vec *sPoints)
 {
-  const PetscInt N = 5;
+  const PetscInt N = 400;
   PetscErrorCode ierr;
   PetscInt nP;
   PetscReal rad;
@@ -1719,7 +1716,6 @@ PetscErrorCode GenerateSpherePoints(Vec xyz, Vec r, Vec *sPoints)
   PetscInt index = 0;
   for(PetscInt n=0; n<nP; ++n) {
     ierr = VecGetValues(r, 1, &n, &rad); CHKERRQ(ierr);
-    printf("RAD: %15.15f\n", rad);
     center[0] = xyzVec[3*n+0];
     center[1] = xyzVec[3*n+1];
     center[2] = xyzVec[3*n+2];
@@ -1770,7 +1766,7 @@ PetscErrorCode CalcInertialEllipsoid(PQRData *pqr, Vec center, Vec abc, Mat T)
   
   //first make a copy of pqr->xyz
   ierr = VecDuplicate(pqr->xyz, &xyzCopy); CHKERRQ(ierr);
-  ierr = VecDuplicate(pqr->xyz, &xyzTemp);
+  ierr = VecDuplicate(pqr->xyz, &xyzTemp); CHKERRQ(ierr);
   ierr = VecCopy(pqr->xyz, xyzCopy); CHKERRQ(ierr);
 
   //call CalcPointParameters
@@ -1830,16 +1826,41 @@ PetscErrorCode CalcInertialEllipsoid(PQRData *pqr, Vec center, Vec abc, Mat T)
   ierr = GenerateSpherePoints(xyzCopy, pqr->R, &sPoints); //generatespherepoints sets the size of sPoints
   
   PetscInt nSpherePoints;
+  PetscReal ellA, ellB, ellC;
+  PetscReal check;
+  PetscReal lower, upper;
+  PetscReal est;
+  lower = 1.0;
+  upper = 10.0;
+  PetscInt intersect = 0;
+  PetscInt index = 0;
+  ierr = VecGetValues(abc, 1, &index, &ellA); CHKERRQ(ierr); index++;
+  ierr = VecGetValues(abc, 1, &index, &ellB); CHKERRQ(ierr); index++;
+  ierr = VecGetValues(abc, 1, &index, &ellC); CHKERRQ(ierr); 
   ierr = VecGetSize(sPoints, &nSpherePoints); CHKERRQ(ierr);		    
   nSpherePoints = nSpherePoints/3;
   ierr = VecGetArrayRead(sPoints, &sPointsVec); CHKERRQ(ierr);
-  for(int n=0; n<nSpherePoints; ++n) {
-    sX = sPointsVec[3*n+0];
-    sY = sPointsVec[3*n+1];
-    sZ = sPointsVec[3*n+2];
-    //printf("x: %15.15f y: %15.15f z: %15.15f\n", sX, sY, sZ);
-    //check if each point is inside the ellipsoid
-    
+  
+  // OPTIMIZE HOW MUCH THE AXES ARE SCALED
+  for(PetscInt loop=0; loop<40; ++loop) {
+    est = (upper + lower)/2.0;
+    printf("%d %15.15f\n", loop, est);
+    intersect = 0;
+    for(PetscInt n=0; n<nSpherePoints; ++n) {
+      sX = sPointsVec[3*n+0];
+      sY = sPointsVec[3*n+1];
+      sZ = sPointsVec[3*n+2];
+      
+      check = (sX*sX)/(est*est*ellA*ellA) + (sY*sY)/(est*est*ellB*ellB) + (sZ*sZ)/(est*est*ellC*ellC);
+      if(check > 1) {
+	intersect = 1;
+	break;
+      }
+    }
+    if(intersect == 0)
+      upper = est;
+    else
+      lower = est;
   }
   ierr = VecRestoreArrayRead(sPoints, &sPointsVec); CHKERRQ(ierr);
   
