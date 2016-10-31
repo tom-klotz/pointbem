@@ -1750,7 +1750,8 @@ PetscErrorCode CalcInertialEllipsoid(PQRData *pqr, Vec center, Vec abc, Mat T)
   Vec xyzCopy, xyzTemp;
   Vec sPoints;
   PetscScalar *xyzP;
-  const  PetscScalar *sPointsVec;
+  const PetscScalar *sPointsVec;
+  const PetscScalar *q;
   PetscInt npts;
   PetscReal xc, yc, zc;
   PetscReal sX, sY, sZ;
@@ -1802,13 +1803,6 @@ PetscErrorCode CalcInertialEllipsoid(PQRData *pqr, Vec center, Vec abc, Mat T)
   ierr = MatMatMult(T, P, MAT_INITIAL_MATRIX, PETSC_DEFAULT, &Ptemp); CHKERRQ(ierr);
   ierr = MatCopy(Ptemp, P, SAME_NONZERO_PATTERN); CHKERRQ(ierr);
 
-  //write transformed points to file
-  FILE *fp;
-  fp = fopen("ellData.txt", "w");
-  fprintf(fp, "wow!\n");
-  fclose(fp);
-  
-  
 
   //assuming P is column-major
   ierr = MatDenseGetArray(Ptemp, &xyzP); CHKERRQ(ierr);
@@ -1822,6 +1816,8 @@ PetscErrorCode CalcInertialEllipsoid(PQRData *pqr, Vec center, Vec abc, Mat T)
   ierr = VecAssemblyEnd(xyzCopy); CHKERRQ(ierr);
   ierr = MatDenseRestoreArray(Ptemp, &xyzP); CHKERRQ(ierr);
 
+  //ierr = VecZeroEntries(pqr->R); CHKERRQ(ierr);
+  ierr = VecScale(pqr->R, .5); CHKERRQ(ierr);
   //### GENERATES POINTS ON SPHERES ###
   ierr = GenerateSpherePoints(xyzCopy, pqr->R, &sPoints); //generatespherepoints sets the size of sPoints
   
@@ -1841,6 +1837,7 @@ PetscErrorCode CalcInertialEllipsoid(PQRData *pqr, Vec center, Vec abc, Mat T)
   nSpherePoints = nSpherePoints/3;
   ierr = VecGetArrayRead(sPoints, &sPointsVec); CHKERRQ(ierr);
   
+  printf("a: %15.15f b: %15.15f c: %15.15f\n", ellA, ellB, ellC);
   // OPTIMIZE HOW MUCH THE AXES ARE SCALED
   for(PetscInt loop=0; loop<40; ++loop) {
     est = (upper + lower)/2.0;
@@ -1851,7 +1848,7 @@ PetscErrorCode CalcInertialEllipsoid(PQRData *pqr, Vec center, Vec abc, Mat T)
       sY = sPointsVec[3*n+1];
       sZ = sPointsVec[3*n+2];
       
-      check = (sX*sX)/(est*est*ellA*ellA) + (sY*sY)/(est*est*ellB*ellB) + (sZ*sZ)/(est*est*ellC*ellC);
+      check = ((sX*sX)/(est*est*ellA*ellA)) + ((sY*sY)/(est*est*ellB*ellB)) + ((sZ*sZ)/(est*est*ellC*ellC));
       if(check > 1) {
 	intersect = 1;
 	break;
@@ -1863,6 +1860,30 @@ PetscErrorCode CalcInertialEllipsoid(PQRData *pqr, Vec center, Vec abc, Mat T)
       lower = est;
   }
   ierr = VecRestoreArrayRead(sPoints, &sPointsVec); CHKERRQ(ierr);
+
+  ierr = VecScale(abc, est); CHKERRQ(ierr);
+  ellA = est*ellA;
+  ellB = est*ellB;
+  ellC = est*ellC;
+
+
+  //write transformed points and ellipsoid axes to file
+  FILE *fp;
+  PetscInt size;
+  fp = fopen("ellData.txt", "w");
+  ierr = VecGetSize(pqr->q, &size);
+  fprintf(fp, "size: %d\n", size);
+  fprintf(fp, "a: %15.15f\nb: %15.15f\nc: %15.15f\n", ellA, ellB, ellC);
+  ierr = VecGetArray(xyzCopy, &xyzP); CHKERRQ(ierr);
+  ierr = VecGetArrayRead(pqr->q, &q);
+  for(PetscInt n=0; n<npts; ++n) {
+    fprintf(fp, "%15.15f %15.15f %15.15f %15.15f\n", xyzP[3*n+0], xyzP[3*n+1], xyzP[3*n+2], q[n]);
+  }
+  ierr = VecRestoreArrayRead(pqr->q, &q); CHKERRQ(ierr);
+  ierr = VecRestoreArray(xyzCopy, &xyzP); CHKERRQ(ierr);
+  fclose(fp);
+  
+  
   
   ierr = PetscFree(ind); CHKERRQ(ierr);
   ierr = MatDestroy(&Ptemp); CHKERRQ(ierr);
