@@ -1,4 +1,4 @@
-CFLAGS = -I.
+CFLAGS = -I. -std=c99
 
 testSrfOnSurfacePoints: testSrfOnSurfacePoints.o surface.o
 	${CLINKER} -o $@ $^ ${PETSC_LIB} ${SLEPC_SYS_LIB}
