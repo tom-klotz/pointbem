@@ -5,7 +5,7 @@ testSrfOnSurfacePoints: testSrfOnSurfacePoints.o surface.o
 	${DSYMUTIL} $@
 
 regression:
-	${PETSC_DIR}/config/builder2.py check [testSrfOnSurfacePoints.c,surface.c] --regParams=testParams ${ARGS}
+	PYTHONPATH=${PYTHONPATH}:.. ${PETSC_DIR}/config/builder2.py check [testSrfOnSurfacePoints.c,surface.c] --regParams=testParams ${ARGS}
 
 asym_sphere:
 	${PETSC_DIR}/config/builder2.py check [testSrfOnSurfacePoints.c,surface.c] --regParams=asymParams ${ARGS}
