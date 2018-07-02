@@ -1298,7 +1298,7 @@ PetscErrorCode makeBEMPcmQualMatrices(DM dm, BEMType bem, PetscReal epsIn, Petsc
   /* C = chargesurfop.slpToCharges */
   ierr = MatScale(C, 4.0*PETSC_PI);CHKERRQ(ierr);
   /* A = surfsurfop.K */
-  ierr = MatTranspose(A, MAT_REUSE_MATRIX, &A);CHKERRQ(ierr);
+  ierr = MatTranspose(A, MAT_INPLACE_MATRIX, &A);CHKERRQ(ierr);
   ierr = MatDiagonalScale(A, NULL, w);CHKERRQ(ierr);
   ierr = VecDuplicate(w, &d);CHKERRQ(ierr);
   ierr = VecCopy(w, d);CHKERRQ(ierr);
@@ -1633,7 +1633,7 @@ PetscErrorCode makeBEMPcmQualReactionPotential2(DM dm, BEMType bem, PetscReal ep
   /* C = chargesurfop.slpToCharges */
   ierr = MatScale(C, 4.0*PETSC_PI);CHKERRQ(ierr);
   /* A = surfsurfop.K */
-  //ierr = MatTranspose(K, MAT_REUSE_MATRIX, &K);CHKERRQ(ierr);
+  //ierr = MatTranspose(K, MAT_INPLACE_MATRIX, &K);CHKERRQ(ierr);
   //ierr = MatDiagonalScale(A, NULL, w);CHKERRQ(ierr);
   //ierr = VecDuplicate(w, &d);CHKERRQ(ierr);
   //ierr = VecCopy(w, d);CHKERRQ(ierr);
@@ -1749,7 +1749,7 @@ PetscErrorCode makeBEMPcmQualReactionPotential(DM dm, BEMType bem, PetscReal eps
   /* C = chargesurfop.slpToCharges */
   ierr = MatScale(C, 4.0*PETSC_PI);CHKERRQ(ierr);
   /* A = surfsurfop.K */
-  ierr = MatTranspose(A, MAT_REUSE_MATRIX, &A);CHKERRQ(ierr);
+  ierr = MatTranspose(A, MAT_INPLACE_MATRIX, &A);CHKERRQ(ierr);
   ierr = MatDiagonalScale(A, NULL, w);CHKERRQ(ierr);
   ierr = VecDuplicate(w, &d);CHKERRQ(ierr);
   ierr = VecCopy(w, d);CHKERRQ(ierr);
