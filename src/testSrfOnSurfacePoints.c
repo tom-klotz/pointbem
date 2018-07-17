@@ -623,6 +623,7 @@ PetscErrorCode computePotential(PQRData *pqr, PetscInt Nmax, Vec Bnm, Vec phi)
 {
   PetscScalar   *xyz, *bnm, *p;
   PetscReal     *P;
+
   PetscInt       Nq, n, m, k, idx = 0;
   PetscErrorCode ierr;
 
@@ -1281,7 +1282,7 @@ PetscErrorCode makeBEMPcmQualMatrices(DM dm, BEMType bem, PetscReal epsIn, Petsc
   /* C = chargesurfop.slpToCharges */
   ierr = MatScale(C, 4.0*PETSC_PI);CHKERRQ(ierr);
   /* A = surfsurfop.K */
-  ierr = MatTranspose(A, MAT_REUSE_MATRIX, &A);CHKERRQ(ierr);
+  ierr = MatTranspose(A, MAT_INPLACE_MATRIX, &A);CHKERRQ(ierr);
   ierr = MatDiagonalScale(A, NULL, w);CHKERRQ(ierr);
   ierr = VecDuplicate(w, &d);CHKERRQ(ierr);
   ierr = VecCopy(w, d);CHKERRQ(ierr);
@@ -1385,7 +1386,7 @@ PetscErrorCode makeBEMPcmQualReactionPotential(DM dm, BEMType bem, PetscReal eps
   /* C = chargesurfop.slpToCharges */
   ierr = MatScale(C, 4.0*PETSC_PI);CHKERRQ(ierr);
   /* A = surfsurfop.K */
-  ierr = MatTranspose(A, MAT_REUSE_MATRIX, &A);CHKERRQ(ierr);
+  ierr = MatTranspose(A, MAT_INPLACE_MATRIX, &A);CHKERRQ(ierr);
   ierr = MatDiagonalScale(A, NULL, w);CHKERRQ(ierr);
   ierr = VecDuplicate(w, &d);CHKERRQ(ierr);
   ierr = VecCopy(w, d);CHKERRQ(ierr);
@@ -1501,7 +1502,7 @@ PetscErrorCode CalculateBEMSolvationEnergy(DM dm, const char prefix[], BEMType b
   Mat             L;
   Vec             coords;
   PetscErrorCode  ierr;
-
+  
   PetscFunctionBeginUser;
   PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
   PetscValidPointer(pqr, 6);
@@ -1523,6 +1524,7 @@ PetscErrorCode CalculateBEMSolvationEnergy(DM dm, const char prefix[], BEMType b
   case BEM_PANEL_MF:
     ierr = DMGetCoordinatesLocal(dm, &coords);CHKERRQ(ierr);
     ierr = makeBEMPcmQualReactionPotential(dm, bem, epsIn, epsOut, pqr, coords, w, n, react);CHKERRQ(ierr);
+    L = NULL;
     ierr = PetscLogEventBegin(CalcE_Event, L, react, pqr->q, 0);CHKERRQ(ierr);
     break;
   }
