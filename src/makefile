@@ -7,8 +7,17 @@ testSrfOnSurfacePoints: testSrfOnSurfacePoints.o surface.o
 regression:
 	PYTHONPATH=${PYTHONPATH}:.. ${PETSC_DIR}/config/builder2.py check [testSrfOnSurfacePoints.c,surface.c] --regParams=testParams ${ARGS}
 
+test_sphere:
+	PYTHONPATH=${PYTHONPATH}:.. ${PETSC_DIR}/config/builder2.py check [testSrfOnSurfacePoints.c,surface.c] --regParams=sphereParams ${ARGS}
+
+test_arg:
+	PYTHONPATH=${PYTHONPATH}:.. ${PETSC_DIR}/config/builder2.py check [testSrfOnSurfacePoints.c,surface.c] --regParams=argParams ${ARGS}
+
+test_asp:
+	PYTHONPATH=${PYTHONPATH}:.. ${PETSC_DIR}/config/builder2.py check [testSrfOnSurfacePoints.c,surface.c] --regParams=aspParams ${ARGS}
+
 asym_sphere:
-	${PETSC_DIR}/config/builder2.py check [testSrfOnSurfacePoints.c,surface.c] --regParams=asymParams ${ARGS}
+	PYTHONPATH=${PYTHONPATH}:.. ${PETSC_DIR}/config/builder2.py check [testSrfOnSurfacePoints.c,surface.c] --regParams=asymParams ${ARGS}
 
 figures_sphere:
 	./meshConvergence.py --type=sphere --output=meshConvSphere
