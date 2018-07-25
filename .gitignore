@@ -8,3 +8,7 @@ geometry/*.srf
 geometry/surf*
 src/meshmaker/meshmaker
 bin
+*.pyc
+*#
+.#*
+*~

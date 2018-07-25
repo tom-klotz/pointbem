@@ -15,6 +15,23 @@ typedef struct {
 } PQRData;
 
 typedef struct {
+  PetscReal alpha;
+  PetscReal beta;
+  PetscReal gamma;
+} HContext;
+
+typedef struct {
+  PQRData   *pqr;
+  PetscReal epsIn;
+  PetscReal epsOut;
+  Mat*      B;
+  Mat*      K;
+  Vec*      Bq;
+  Vec*      w;
+  HContext* hctx;
+} NonlinearContext;
+
+typedef struct {
   /* Physical parameters */
   PetscReal epsIn;      /* solute dielectric coefficient */
   PetscReal epsOut;     /* solvent dielectric coefficient */
@@ -1334,6 +1351,353 @@ PetscErrorCode ComputeBEMJacobian(SNES snes, Vec x, Mat J, Mat P, void *ctx)
 }
 
 #undef __FUNCT__
+#define __FUNCT__ "nonlinearH"
+/*@
+  nonlinearH - the function h(En) defining the nonlinearity
+  alpha*tanh(beta*En - gamma) + mu
+
+  Input Parameters:
++ E - vector containing values of En
+- ctx - context containing parameters alpha, beta, gamma, mu
+
+  Output Parameters:
+. h - vector containing values of h(En)
+
+  Level: beginner
+
+.seealso: makeBEMPcmQualReactionPotential
+@*/
+PetscErrorCode nonlinearH(Vec E, HContext *ctx, Vec *hEn)
+{
+  PetscInt length;
+  PetscReal alpha, beta, gamma, mu;
+  PetscErrorCode ierr;
+
+  PetscFunctionBeginUser;
+  alpha = ctx->alpha;
+  beta  = ctx->beta;
+  gamma = ctx->gamma;
+  mu    = -alpha*PetscTanhReal(-gamma);
+  ierr = VecGetSize(E, &length); CHKERRQ(ierr);
+  //ierr = VecDuplicate(E, &h); CHKERRQ(ierr);
+  
+  PetscInt i;
+  PetscReal val;
+  for(i=0; i<length; ++i) {
+    ierr = VecGetValues(E, 1, &i, &val); CHKERRQ(ierr);
+    val = alpha*PetscTanhReal(beta*val - gamma) + mu;
+    ierr = VecSetValue(*hEn, i, val, INSERT_VALUES); CHKERRQ(ierr);
+  }
+  ierr = VecAssemblyBegin(*hEn); CHKERRQ(ierr);
+  ierr = VecAssemblyEnd(*hEn); CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "ASCBq"
+/*@ 
+  ASCBq - forms right hand side Bq of ASC model
+  
+.seealso 
+@*/
+PetscErrorCode ASCBq(Vec sigma, Vec *Bq, NonlinearContext *ctx)
+{
+  PetscReal epsOut, epsIn, epsHat;
+  Mat*      B;
+  PetscErrorCode ierr;
+
+  PetscFunctionBeginUser;
+  epsOut = ctx->epsOut;
+  epsIn  = ctx->epsIn;
+  epsHat = (epsIn - epsOut)/epsIn;
+
+  B = ctx->B;
+
+  ierr = MatMult(*B, ctx->pqr->q, *Bq); CHKERRQ(ierr);
+  ierr = VecScale(*Bq, epsHat); CHKERRQ(ierr);
+  //ierr = VecView(ctx->pqr->q, PETSC_VIEWER_STDOUT_SELF);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "FormASCNonlinearMatrix"
+/*@
+  FormASCNonlinearMatrix - forms the left hand matrix for the ASC nonlinear BIE
+  
+
+@*/
+PetscErrorCode FormASCNonlinearMatrix(Vec sigma, Mat *A, NonlinearContext *ctx)
+{
+  PetscReal epsOut, epsIn, epsHat, epsHat2;
+  PetscInt  dim;
+  Mat*      B;
+  Mat*      K;
+  Vec*      Bq;
+  Vec*      w;
+  Vec*      q;
+  //Vec       iden;
+  Vec       En;
+  Vec       hEn;
+  Vec       v1, v2, v3;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  epsOut  = ctx->epsOut;
+  epsIn   = ctx->epsIn;
+  B       = ctx->B;
+  K       = ctx->K;
+  Bq      = ctx->Bq;
+  w       = ctx->w;
+  q       = &(ctx->pqr->q);
+  epsHat  = (epsIn - epsOut)/epsIn;
+  epsHat2 = (epsOut + epsIn)/(2*epsOut);
+
+  //get the dimension of sigma
+  ierr = VecGetLocalSize(sigma, &dim); CHKERRQ(ierr);
+  //initialize dense A matrix
+  //if(A) {ierr = MatCreateSeqDense(PETSC_COMM_SELF, dim, dim, NULL, A);CHKERRQ(ierr);}
+
+  //A = I + epsHat*(K - (1/2)*I)
+  ierr = MatTranspose(*K, MAT_REUSE_MATRIX, A); CHKERRQ(ierr); //gives qualocated normal field operator
+  //ierr = MatCopy(*K, *A, SAME_NONZERO_PATTERN); CHKERRQ(ierr);
+  //ierr = MatScale(A, epsHat); CHKERRQ(ierr);
+  //ierr = VecDuplicate(sigma, &iden); CHKERRQ(ierr);
+  //ierr = VecSet(iden, epsHat2); CHKERRQ(ierr);
+  //ierr = MatDiagonalSet(A, iden, ADD_VALUES); CHKERRQ(ierr);
+
+  ierr = MatShift(*A, -0.5); CHKERRQ(ierr);
+  ierr = MatScale(*A, epsHat); CHKERRQ(ierr);
+  ierr = MatShift(*A, 1.0); CHKERRQ(ierr);
+
+  /* Use sigma to solve for En. En = rhs - K*sigma */
+  //Calculate En = -B*q - K*sigma
+  ierr = VecDuplicate(sigma, &v1); CHKERRQ(ierr);
+  ierr = VecDuplicate(*w   , &v2); CHKERRQ(ierr);
+  ierr = MatCreateVecs(*B, NULL, &v3); CHKERRQ(ierr);
+
+  ierr = VecPointwiseMult(v1, sigma, *w); CHKERRQ(ierr);
+  ierr = MatMult(*K, v1, v2); CHKERRQ(ierr);
+
+  ierr = MatMult(*B, *q, v3); CHKERRQ(ierr);
+
+  ierr = VecAXPY(v3, -1.0, v2); CHKERRQ(ierr);
+
+  ierr = VecDuplicate(v3, &En); CHKERRQ(ierr);
+  ierr = VecCopy(v3, En); CHKERRQ(ierr);
+
+  //compute h(En)
+  ierr = VecDuplicate(En, &hEn); CHKERRQ(ierr);
+  ierr = nonlinearH(En, ctx->hctx, &hEn); CHKERRQ(ierr);
+  //printf("hEn:\n");
+  //ierr = VecView(hEn, PETSC_VIEWER_STDOUT_SELF);
+  
+  //add h(En) to A
+  ierr = MatDiagonalSet(*A, hEn, ADD_VALUES); CHKERRQ(ierr);
+  
+  //printf("val should be %15.15f\n", 1+epsHat/2.);
+  //ierr = MatView(*A, PETSC_VIEWER_STDOUT_SELF); CHKERRQ(ierr);
+
+  //Scale columns by entries of w
+  ierr = MatDiagonalScale(*A, NULL, *w); CHKERRQ(ierr);
+
+
+  ierr = MatAssemblyBegin(*A, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);ierr = MatAssemblyEnd(*A, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "NonlinearPicard"
+/*@
+  NonlinearPicard - uses a picard iteration to solve for the charge layer sigma.
+  
+  Input Parameters:
+  + lhs - function used to evaluate matrix A(x)
+  . rhs - function evaluating the right hand side b(x)
+  - guess - initial guess
+  - ctx - additional user supplied data passed to lhs and rhs function evaluations (optional)
+
+  Output Parameters:
+  . sol - calculated solution
+
+  Level: intermediate
+
+.seealso: makeBEMPcmQualReactionPotential
+@*/
+PetscErrorCode NonlinearPicard(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscErrorCode (*rhs)(Vec, Vec*, void*), Vec guess, void *ctx, Vec *sol)
+{
+  PetscErrorCode ierr;
+  PetscInt dim;
+  Mat A;
+  Vec b;
+  Vec errvec;
+  KSP ksp;
+  PetscFunctionBegin;
+
+  //get dimension of problem
+  ierr = VecGetSize(guess, &dim); CHKERRQ(ierr);
+
+  //initialize dense A matrix and b vector
+  ierr = VecDuplicate(guess, &b); CHKERRQ(ierr);
+  ierr = MatCreateSeqDense(PETSC_COMM_WORLD, dim, dim, NULL, &A); CHKERRQ(ierr);
+
+  //make sol vector to be same length as guess and copy values
+  //VecDuplicate(guess, sol);
+  ierr = VecCopy(guess, *sol); CHKERRQ(ierr);
+  
+  //create linear solver context
+  ierr = KSPCreate(PETSC_COMM_WORLD, &ksp); CHKERRQ(ierr);
+  
+  //initialize errvec for error calc
+  ierr = VecDuplicate(guess, &errvec);
+  ierr = VecSet(errvec, -1.2);
+
+  //ierr = VecView(errvec, PETSC_VIEWER_STDOUT_SELF);
+  PetscReal err = 1; 
+  for(int iter=1; iter<=10; ++iter)
+  {
+    printf("\n\nITERATION NUMBER %d\n", iter);
+    ierr = (*lhs)(*sol, &A, ctx); CHKERRQ(ierr);
+    ierr = (*rhs)(*sol, &b, ctx); CHKERRQ(ierr);
+    //ierr = MatView(A, PETSC_VIEWER_STDOUT_SELF);
+    ierr = KSPSetOperators(ksp, A, A); CHKERRQ(ierr);
+    ierr = KSPSetTolerances(ksp, PETSC_DEFAULT, PETSC_DEFAULT, PETSC_DEFAULT, PETSC_DEFAULT); CHKERRQ(ierr);
+    ierr = KSPSetFromOptions(ksp); CHKERRQ(ierr);
+    //copy current iteration value to prev
+    ierr = VecCopy(*sol, errvec); CHKERRQ(ierr);
+
+    //solve system
+    ierr = KSPSolve(ksp, b, *sol); CHKERRQ(ierr);
+
+    //calculate current error, will be inaccurate on first iteration
+    ierr = VecAXPY(errvec, -1.0, *sol); CHKERRQ(ierr);
+    ierr = VecNorm(errvec, NORM_2, &err); CHKERRQ(ierr);
+    
+    printf("THE ERROR IS: %15.15f\n", err);
+    //printf("sol:\n");
+    //ierr = VecView(*sol, PETSC_VIEWER_STDOUT_SELF); CHKERRQ(ierr);
+  }
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "makeBEMPcmQualReactionPotential2"
+/*@
+  makeBEMPcmQualReactionPotential - Make the reaction potential, phi_react = Lq = C A^{-1} Bq in the Polarizable Continuum Model
+
+  Input Parameters:
++ epsIn - the dielectric constant inside the protein
+. epsOut - the dielectric constant outside the protein
+. pqrData - the PQRData context
+. coordinates - The vertex coordinates
+. w - The vertex weights
+- n - The vertex normals
+
+  Output Parameters:
+. react - The reaction potential
+
+  Level: beginner
+
+.seealso: doAnalytical()
+@*/
+PetscErrorCode makeBEMPcmQualReactionPotentialNonlinear(DM dm, BEMType bem, HContext params, PetscReal epsIn, PetscReal epsOut, PQRData *pqr, Vec coordinates, Vec w, Vec n, Vec react)
+{
+  //const PetscReal epsHat = (epsIn + epsOut)/(epsIn - epsOut);
+  //SNES            snes;
+  Mat             K, Bp, B, C;
+  Vec             t0, t1;
+  Vec             guess;
+  PetscErrorCode  ierr;
+
+  PetscFunctionBegin;
+  switch (bem) {
+  case BEM_POINT_MF:
+    ierr = makeSurfaceToSurfacePointOperators_Laplace(coordinates, w, n, NULL, &K);CHKERRQ(ierr);
+    ierr = makeSurfaceToChargePointOperators(coordinates, w, n, pqr, NULL, &B, &C, NULL);CHKERRQ(ierr);
+    ierr = PetscLogEventBegin(CalcR_Event, 0, 0, 0, 0);CHKERRQ(ierr);
+    /* B = chargesurfop.dphidnCoul */
+    ierr = MatDiagonalScale(B, w, NULL);CHKERRQ(ierr);
+    ierr = MatScale(B, -1/epsIn);CHKERRQ(ierr);
+    break;
+  case BEM_PANEL_MF:
+    ierr = makeSurfaceToSurfacePanelOperators_Laplace(dm, w, NULL /*n*/, NULL, &K);CHKERRQ(ierr);
+    ierr = makeSurfaceToChargePanelOperators(dm, w, NULL /*n*/, pqr, NULL, NULL, &C, &Bp);CHKERRQ(ierr);
+    ierr = PetscLogEventBegin(CalcR_Event, 0, 0, 0, 0);CHKERRQ(ierr);
+    /* Bp = chargesurfop.dlpToCharges */
+    ierr = MatTranspose(Bp, MAT_INITIAL_MATRIX, &B);CHKERRQ(ierr);
+    ierr = MatDestroy(&Bp);CHKERRQ(ierr);
+    ierr = MatScale(B, -1/epsIn);CHKERRQ(ierr);
+    break;
+  default:
+    SETERRQ1(PETSC_COMM_SELF, PETSC_ERR_ARG_WRONG, "Invalid BEM type: %d", bem);
+  }
+  /* C = chargesurfop.slpToCharges */
+  ierr = MatScale(C, 4.0*PETSC_PI);CHKERRQ(ierr);
+  /* A = surfsurfop.K */
+  //ierr = MatTranspose(K, MAT_INPLACE_MATRIX, &K);CHKERRQ(ierr);
+  //ierr = MatDiagonalScale(A, NULL, w);CHKERRQ(ierr);
+  //ierr = VecDuplicate(w, &d);CHKERRQ(ierr);
+  //ierr = VecCopy(w, d);CHKERRQ(ierr);
+  //ierr = VecScale(d, epsHat/2.0);CHKERRQ(ierr);
+  //ierr = MatDiagonalSet(A, d, ADD_VALUES);CHKERRQ(ierr);
+  //ierr = VecDestroy(&d);CHKERRQ(ierr);
+
+  ierr = MatCreateVecs(B, NULL, &t0);CHKERRQ(ierr);
+  ierr = VecDuplicate(t0, &t1);CHKERRQ(ierr);
+  //ierr = MatMult(B, pqr->q, t0);CHKERRQ(ierr);
+
+
+  
+  /* Can do Picard by using the Jacobian that gets made, the rhs that is passed in, and NEWTONLS
+       F(x) = A x - b,   J(x) = A,   J dx = F(0)  ==>  A dx = -b,   x = 0 - dx
+
+       A(0) dx_1 = F(0) - b = A(0) 0 - b = -b
+         x_1 = 0 - dx_1 = 0 - (-p_1) = p_1
+       A(x_1) dx_2 = F(x_1) - b = A(x_1) x_1 - b  ==>  A(x_1) (dx_2 - x_1) = -b
+         dx_2 - x_1 = -p_2
+         x_2 = x_1 - dx_2 = x_1 - (-p_2 + x_1) = p_2
+  */
+
+  //ierr = MatDuplicate(A, MAT_DO_NOT_COPY_VALUES, &J);CHKERRQ(ierr);
+  //ierr = VecDuplicate(t0, &t2);CHKERRQ(ierr);
+  //PetscErrorCode NonlinearPicard(PetscErrorCode (*lhs)(Vec, Mat, void*), PetscErrorCode (*rhs)(Vec, Vec, void*), Vec guess, void *ctx, Vec sol)
+  //PetscErrorCode FormASCNonlinearMatrix(Vec sigma, Mat *A, NonlinearContext *ctx);
+  ierr = VecDuplicate(t0, &guess); CHKERRQ(ierr);
+  ierr = VecZeroEntries(guess); CHKERRQ(ierr);
+  NonlinearContext nctx;
+  //HContext         hctx = {.alpha = 0.5, .beta = -60, .gamma = -0.5};
+  nctx.pqr    = pqr;
+  nctx.epsIn  = epsIn;
+  nctx.epsOut = epsOut;
+  nctx.B      = &B;
+  nctx.K      = &K;
+  nctx.Bq     = &t0;
+  nctx.w      = &w;
+  nctx.hctx   = &params;
+  ierr = NonlinearPicard((PetscErrorCode (*)(Vec, Mat*, void*))&FormASCNonlinearMatrix, (PetscErrorCode (*)(Vec, Vec*, void*))&ASCBq, guess, &nctx, &t1); CHKERRQ(ierr);
+  /*
+  ierr = SNESCreate(PetscObjectComm((PetscObject) dm), &snes);CHKERRQ(ierr);
+  ierr = SNESSetFunction(snes, t2, ComputeBEMResidual, &A);CHKERRQ(ierr);
+  ierr = SNESSetJacobian(snes, J, J, ComputeBEMJacobian, &A);CHKERRQ(ierr);
+  ierr = SNESSetFromOptions(snes);CHKERRQ(ierr);
+  ierr = SNESSolve(snes, t0, t1);CHKERRQ(ierr);
+  ierr = SNESDestroy(&snes);CHKERRQ(ierr);
+  */
+
+
+  ierr = MatMult(C, t1, react);CHKERRQ(ierr);
+  ierr = VecDestroy(&t0);CHKERRQ(ierr);
+  ierr = VecDestroy(&t1);CHKERRQ(ierr);
+  //ierr = VecDestroy(&t2);CHKERRQ(ierr);
+  //ierr = MatDestroy(&J);CHKERRQ(ierr);
+  ierr = MatDestroy(&K);CHKERRQ(ierr);
+  ierr = MatDestroy(&B);CHKERRQ(ierr);
+  ierr = MatDestroy(&C);CHKERRQ(ierr);
+  ierr = PetscLogEventEnd(CalcR_Event, 0, 0, 0, 0);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
 #define __FUNCT__ "makeBEMPcmQualReactionPotential"
 /*@
   makeBEMPcmQualReactionPotential - Make the reaction potential, phi_react = Lq = C A^{-1} Bq in the Polarizable Continuum Model
@@ -1357,7 +1721,7 @@ PetscErrorCode makeBEMPcmQualReactionPotential(DM dm, BEMType bem, PetscReal eps
 {
   const PetscReal epsHat = (epsIn + epsOut)/(epsIn - epsOut);
   SNES            snes;
-  Mat             J, A, Bp, B, C, S, fact;
+  Mat             J, A, Bp, B, C;
   Vec             d, t0, t1, t2;
   PetscErrorCode  ierr;
 
@@ -1397,7 +1761,7 @@ PetscErrorCode makeBEMPcmQualReactionPotential(DM dm, BEMType bem, PetscReal eps
   ierr = MatCreateVecs(B, NULL, &t0);CHKERRQ(ierr);
   ierr = VecDuplicate(t0, &t1);CHKERRQ(ierr);
   ierr = MatMult(B, pqr->q, t0);CHKERRQ(ierr);
-
+  
   /* Can do Picard by using the Jacobian that gets made, the rhs that is passed in, and NEWTONLS
        F(x) = A x - b,   J(x) = A,   J dx = F(0)  ==>  A dx = -b,   x = 0 - dx
 
@@ -1493,7 +1857,7 @@ PetscErrorCode CalculateAnalyticSolvationEnergy(PetscReal epsIn, PetscReal epsOu
 
 .seealso: doAnalytical()
 @*/
-PetscErrorCode CalculateBEMSolvationEnergy(DM dm, const char prefix[], BEMType bem, PetscReal epsIn, PetscReal epsOut, PQRData *pqr, Vec w, Vec n, Vec react, PetscReal *E)
+PetscErrorCode CalculateBEMSolvationEnergy(DM dm, const char prefix[], BEMType bem, HContext params, PetscReal epsIn, PetscReal epsOut, PQRData *pqr, Vec w, Vec n, Vec react, PetscReal *E)
 {
   const PetscReal q     = ELECTRON_CHARGE;
   const PetscReal Na    = AVOGADRO_NUMBER;
@@ -1502,8 +1866,8 @@ PetscErrorCode CalculateBEMSolvationEnergy(DM dm, const char prefix[], BEMType b
   Mat             L;
   Vec             coords;
   PetscErrorCode  ierr;
-  
-  PetscFunctionBeginUser;
+
+  PetscFunctionBegin;
   PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
   PetscValidPointer(pqr, 6);
   PetscValidPointer(E, 10);
@@ -1523,7 +1887,14 @@ PetscErrorCode CalculateBEMSolvationEnergy(DM dm, const char prefix[], BEMType b
   case BEM_POINT_MF:
   case BEM_PANEL_MF:
     ierr = DMGetCoordinatesLocal(dm, &coords);CHKERRQ(ierr);
-    ierr = makeBEMPcmQualReactionPotential(dm, bem, epsIn, epsOut, pqr, coords, w, n, react);CHKERRQ(ierr);
+
+    //alpha=0 runs standard linear problem while alpha!=0 calls nonlinear routine
+    if (params.alpha==0.0) {
+      ierr = makeBEMPcmQualReactionPotential(dm, bem, epsIn, epsOut, pqr, coords, w, n, react);CHKERRQ(ierr);
+    }
+    else {
+      ierr = makeBEMPcmQualReactionPotentialNonlinear(dm, bem, params, epsIn, epsOut, pqr, coords, w, n, react);CHKERRQ(ierr);
+    }
     L = NULL;
     ierr = PetscLogEventBegin(CalcE_Event, L, react, pqr->q, 0);CHKERRQ(ierr);
     break;
@@ -1534,23 +1905,24 @@ PetscErrorCode CalculateBEMSolvationEnergy(DM dm, const char prefix[], BEMType b
   PetscFunctionReturn(0);
 }
 
+
 #undef __FUNCT__
 #define __FUNCT__ "main"
 int main(int argc, char **argv)
 {
   /* Constants */
-  const PetscReal  q     = ELECTRON_CHARGE;
-  const PetscReal  Na    = AVOGADRO_NUMBER;
-  const PetscReal  JperC = 4.184; /* Jouled/Calorie */
-  const PetscReal  kB    = Na * BOLTZMANN_K/4.184/1000.0; /* Now in kcal/K/mol */
-  const PetscReal  cf    = Na * (q*q/EPSILON_0)/JperC * (1e10/1000) * 1/4/PETSC_PI; /* kcal ang/mol */
+  //const PetscReal  q     = ELECTRON_CHARGE;
+  //const PetscReal  Na    = AVOGADRO_NUMBER;
+  //const PetscReal  JperC = 4.184; /* Jouled/Calorie */
+  //const PetscReal  kB    = Na * BOLTZMANN_K/4.184/1000.0; /* Now in kcal/K/mol */
+  //const PetscReal  cf    = Na * (q*q/EPSILON_0)/JperC * (1e10/1000) * 1/4/PETSC_PI; /* kcal ang/mol */
   /* Problem data */
-  DM               dm, dmSimple;
+  DM               dm;//, dmSimple;
   PQRData          pqr;
   PetscSurface     msp;
   Vec              panelAreas, vertWeights, vertNormals, react;
   PetscReal        totalArea;
-  PetscInt         Np;
+  //PetscInt         Np;
   SolvationContext ctx;
   /* Solvation Energies */
   PetscScalar      Eref = 0.0, ESimple = 0.0, ESurf = 0.0, ESurfMF = 0.0, EPanel = 0.0, EMSP = 0.0;
@@ -1590,18 +1962,19 @@ int main(int argc, char **argv)
   ierr = PetscLogStageRegister("Point Surface MF", &stageSurfMF);CHKERRQ(ierr);
   ierr = PetscLogStageRegister("Panel Surface", &stagePanel);CHKERRQ(ierr);
   ierr = PetscLogStagePush(stageSurf);CHKERRQ(ierr);
-  ierr = CalculateBEMSolvationEnergy(dm, "lsrf_", BEM_POINT, ctx.epsIn, ctx.epsOut, &pqr, vertWeights, vertNormals, react, &ESurf);CHKERRQ(ierr);
+  HContext params = {.alpha = 0.0, .beta=-60, .gamma=-0.5};
+  ierr = CalculateBEMSolvationEnergy(dm, "lsrf_", BEM_POINT, params, ctx.epsIn, ctx.epsOut, &pqr, vertWeights, vertNormals, react, &ESurf);CHKERRQ(ierr);
   ierr = PetscLogStagePop();CHKERRQ(ierr);
   ierr = PetscLogStagePush(stageSurfMF);CHKERRQ(ierr);
-  ierr = CalculateBEMSolvationEnergy(dm, "lsrf_mf_", BEM_POINT_MF, ctx.epsIn, ctx.epsOut, &pqr, vertWeights, vertNormals, react, &ESurfMF);CHKERRQ(ierr);
+  ierr = CalculateBEMSolvationEnergy(dm, "lsrf_mf_", BEM_POINT_MF, params, ctx.epsIn, ctx.epsOut, &pqr, vertWeights, vertNormals, react, &ESurfMF);CHKERRQ(ierr);
   ierr = PetscLogStagePop();CHKERRQ(ierr);
   ierr = PetscLogStagePush(stagePanel);CHKERRQ(ierr);
-  ierr = CalculateBEMSolvationEnergy(dm, "lpanel_", BEM_PANEL, ctx.epsIn, ctx.epsOut, &pqr, panelAreas, vertNormals, react, &EPanel);CHKERRQ(ierr);
+  ierr = CalculateBEMSolvationEnergy(dm, "lpanel_", BEM_PANEL, params, ctx.epsIn, ctx.epsOut, &pqr, panelAreas, vertNormals, react, &EPanel);CHKERRQ(ierr);
   ierr = PetscLogStagePop();CHKERRQ(ierr);
   if (msp.weights) {
     ierr = PetscLogStageRegister("MSP Surface", &stageMSP);CHKERRQ(ierr);
     ierr = PetscLogStagePush(stageMSP);CHKERRQ(ierr);
-    ierr = CalculateBEMSolvationEnergy(msp.dm, "lmsp_", BEM_POINT, ctx.epsIn, ctx.epsOut, &pqr, msp.weights, msp.normals, react, &EMSP);CHKERRQ(ierr);
+    ierr = CalculateBEMSolvationEnergy(msp.dm, "lmsp_", BEM_POINT, params, ctx.epsIn, ctx.epsOut, &pqr, msp.weights, msp.normals, react, &EMSP);CHKERRQ(ierr);
     ierr = PetscLogStagePop();CHKERRQ(ierr);
   }
   /* Verification */
@@ -1616,7 +1989,7 @@ int main(int argc, char **argv)
 
     ierr = PetscLogStageRegister("Simple Surface", &stageSimple);CHKERRQ(ierr);
     ierr = PetscLogStagePush(stageSimple);CHKERRQ(ierr);
-    ierr = CalculateBEMSolvationEnergy(dmSimple, "lsimple_", BEM_POINT, ctx.epsIn, ctx.epsOut, &pqr, vertWeightsSimple, vertNormalsSimple, react, &ESimple);CHKERRQ(ierr);
+    ierr = CalculateBEMSolvationEnergy(dmSimple, "lsimple_", BEM_POINT, params, ctx.epsIn, ctx.epsOut, &pqr, vertWeightsSimple, vertNormalsSimple, react, &ESimple);CHKERRQ(ierr);
     ierr = PetscLogStagePop();CHKERRQ(ierr);
     ierr = CalculateAnalyticSolvationEnergy(ctx.epsIn, ctx.epsOut, &pqr, ctx.R, ctx.Nmax, react, &Eref);CHKERRQ(ierr);
     ierr = PetscPrintf(PETSC_COMM_WORLD, "Eref = %.6f ESurf   = %.6f Error = %.6f Rel. error = %.4f\n", Eref, ESurf,   Eref-ESurf,   (Eref-ESurf)/Eref);CHKERRQ(ierr);
@@ -1630,6 +2003,8 @@ int main(int argc, char **argv)
   } else {
     Eref = 1.0; /* TODO This should be higher resolution BEM */
     ierr = PetscPrintf(PETSC_COMM_WORLD, "Eref = %.6f ESurf  = %.6f Error = %.6f Rel. error = %.4f\n", Eref, ESurf,  Eref-ESurf,  (Eref-ESurf)/Eref);CHKERRQ(ierr);
+    ierr = PetscPrintf(PETSC_COMM_WORLD, "Eref = %.6f ESurfMF = %.6f Error = %.6f Rel. error = %.4f\n", Eref, ESurfMF, Eref-ESurfMF, (Eref-ESurfMF)/Eref);CHKERRQ(ierr);
+    //ierr = PetscPrintf(PETSC_COMM_WORLD, "Eref = %.6f ESimple = %.6f Error = %.6f Rel. error = %.4f\n", Eref, ESimple, Eref-ESimple, (Eref-ESimple)/Eref);CHKERRQ(ierr);
     ierr = PetscPrintf(PETSC_COMM_WORLD, "Eref = %.6f EPanel = %.6f Error = %.6f Rel. error = %.4f\n", Eref, EPanel, Eref-EPanel, (Eref-EPanel)/Eref);CHKERRQ(ierr);
     if (msp.weights) {ierr = PetscPrintf(PETSC_COMM_WORLD, "Eref = %.6f EMSP   = %.6f Error = %.6f Rel. error = %.4f\n", Eref, EMSP,   Eref-EMSP,   (Eref-EMSP)/Eref);CHKERRQ(ierr);}
   }

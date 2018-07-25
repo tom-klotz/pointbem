@@ -244,11 +244,15 @@ PetscErrorCode loadSrfIntoSurfacePoints(MPI_Comm comm, const char filename[], Ve
   for (l = len-1; basename[l] != '/' && l >= 0; --l) basename[l] = '\0';
   ierr = PetscViewerASCIIRead(viewer, &basename[l+1], 1, NULL, PETSC_STRING);CHKERRQ(ierr);
   ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
-
+  /* This is causing gibberish output, figure out before uncommenting */
+  //for(int i=0; i<PETSC_MAX_PATH_LEN; ++i)
+  //printf("%c",basename[i]);
+  //printf("\n\n");
   ierr = DMPlexCreateBardhanFromFile(comm, basename, PETSC_TRUE, n, dm);CHKERRQ(ierr);
   ierr = DMPlexGetHeightStratum(*dm, 0, &cStart, &cEnd);CHKERRQ(ierr);
   ierr = DMPlexGetDepthStratum(*dm, 0, &vStart, &vEnd);CHKERRQ(ierr);
   /* TODO Jay has a pass where he eliminates vertices of low weight, or which are too close to another vertex */
+
 
   ierr = VecCreate(comm, area);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) *area, "panel areas");CHKERRQ(ierr);
