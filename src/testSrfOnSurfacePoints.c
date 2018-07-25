@@ -1599,7 +1599,7 @@ PetscErrorCode NonlinearPicard(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscErr
 
 .seealso: doAnalytical()
 @*/
-PetscErrorCode makeBEMPcmQualReactionPotential2(DM dm, BEMType bem, PetscReal epsIn, PetscReal epsOut, PQRData *pqr, Vec coordinates, Vec w, Vec n, Vec react)
+PetscErrorCode makeBEMPcmQualReactionPotentialNonlinear(DM dm, BEMType bem, HContext params, PetscReal epsIn, PetscReal epsOut, PQRData *pqr, Vec coordinates, Vec w, Vec n, Vec react)
 {
   //const PetscReal epsHat = (epsIn + epsOut)/(epsIn - epsOut);
   //SNES            snes;
@@ -1664,7 +1664,7 @@ PetscErrorCode makeBEMPcmQualReactionPotential2(DM dm, BEMType bem, PetscReal ep
   ierr = VecDuplicate(t0, &guess); CHKERRQ(ierr);
   ierr = VecZeroEntries(guess); CHKERRQ(ierr);
   NonlinearContext nctx;
-  HContext         hctx = {.alpha = 0.5, .beta = -60, .gamma = -0.5};
+  //HContext         hctx = {.alpha = 0.5, .beta = -60, .gamma = -0.5};
   nctx.pqr    = pqr;
   nctx.epsIn  = epsIn;
   nctx.epsOut = epsOut;
@@ -1672,7 +1672,7 @@ PetscErrorCode makeBEMPcmQualReactionPotential2(DM dm, BEMType bem, PetscReal ep
   nctx.K      = &K;
   nctx.Bq     = &t0;
   nctx.w      = &w;
-  nctx.hctx   = &hctx;
+  nctx.hctx   = &params;
   ierr = NonlinearPicard((PetscErrorCode (*)(Vec, Mat*, void*))&FormASCNonlinearMatrix, (PetscErrorCode (*)(Vec, Vec*, void*))&ASCBq, guess, &nctx, &t1); CHKERRQ(ierr);
   /*
   ierr = SNESCreate(PetscObjectComm((PetscObject) dm), &snes);CHKERRQ(ierr);
@@ -1856,7 +1856,7 @@ PetscErrorCode CalculateAnalyticSolvationEnergy(PetscReal epsIn, PetscReal epsOu
 
 .seealso: doAnalytical()
 @*/
-PetscErrorCode CalculateBEMSolvationEnergy(DM dm, const char prefix[], BEMType bem, PetscReal epsIn, PetscReal epsOut, PQRData *pqr, Vec w, Vec n, Vec react, PetscReal *E)
+PetscErrorCode CalculateBEMSolvationEnergy(DM dm, const char prefix[], BEMType bem, HContext params, PetscReal epsIn, PetscReal epsOut, PQRData *pqr, Vec w, Vec n, Vec react, PetscReal *E)
 {
   const PetscReal q     = ELECTRON_CHARGE;
   const PetscReal Na    = AVOGADRO_NUMBER;
@@ -1886,7 +1886,14 @@ PetscErrorCode CalculateBEMSolvationEnergy(DM dm, const char prefix[], BEMType b
   case BEM_POINT_MF:
   case BEM_PANEL_MF:
     ierr = DMGetCoordinatesLocal(dm, &coords);CHKERRQ(ierr);
-    ierr = makeBEMPcmQualReactionPotential2(dm, bem, epsIn, epsOut, pqr, coords, w, n, react);CHKERRQ(ierr);
+
+    //alpha=0 runs standard linear problem while alpha!=0 calls nonlinear routine
+    if (params.alpha==0.0) {
+      ierr = makeBEMPcmQualReactionPotential(dm, bem, epsIn, epsOut, pqr, coords, w, n, react);CHKERRQ(ierr);
+    }
+    else {
+      ierr = makeBEMPcmQualReactionPotentialNonlinear(dm, bem, params, epsIn, epsOut, pqr, coords, w, n, react);CHKERRQ(ierr);
+    }
     L = NULL;
     ierr = PetscLogEventBegin(CalcE_Event, L, react, pqr->q, 0);CHKERRQ(ierr);
     break;
@@ -1954,18 +1961,19 @@ int main(int argc, char **argv)
   ierr = PetscLogStageRegister("Point Surface MF", &stageSurfMF);CHKERRQ(ierr);
   ierr = PetscLogStageRegister("Panel Surface", &stagePanel);CHKERRQ(ierr);
   ierr = PetscLogStagePush(stageSurf);CHKERRQ(ierr);
-  ierr = CalculateBEMSolvationEnergy(dm, "lsrf_", BEM_POINT, ctx.epsIn, ctx.epsOut, &pqr, vertWeights, vertNormals, react, &ESurf);CHKERRQ(ierr);
+  HContext params = {.alpha = 0.0, .beta=-60, .gamma=-0.5};
+  ierr = CalculateBEMSolvationEnergy(dm, "lsrf_", BEM_POINT, params, ctx.epsIn, ctx.epsOut, &pqr, vertWeights, vertNormals, react, &ESurf);CHKERRQ(ierr);
   ierr = PetscLogStagePop();CHKERRQ(ierr);
   ierr = PetscLogStagePush(stageSurfMF);CHKERRQ(ierr);
-  ierr = CalculateBEMSolvationEnergy(dm, "lsrf_mf_", BEM_POINT_MF, ctx.epsIn, ctx.epsOut, &pqr, vertWeights, vertNormals, react, &ESurfMF);CHKERRQ(ierr);
+  ierr = CalculateBEMSolvationEnergy(dm, "lsrf_mf_", BEM_POINT_MF, params, ctx.epsIn, ctx.epsOut, &pqr, vertWeights, vertNormals, react, &ESurfMF);CHKERRQ(ierr);
   ierr = PetscLogStagePop();CHKERRQ(ierr);
   ierr = PetscLogStagePush(stagePanel);CHKERRQ(ierr);
-  ierr = CalculateBEMSolvationEnergy(dm, "lpanel_", BEM_PANEL, ctx.epsIn, ctx.epsOut, &pqr, panelAreas, vertNormals, react, &EPanel);CHKERRQ(ierr);
+  ierr = CalculateBEMSolvationEnergy(dm, "lpanel_", BEM_PANEL, params, ctx.epsIn, ctx.epsOut, &pqr, panelAreas, vertNormals, react, &EPanel);CHKERRQ(ierr);
   ierr = PetscLogStagePop();CHKERRQ(ierr);
   if (msp.weights) {
     ierr = PetscLogStageRegister("MSP Surface", &stageMSP);CHKERRQ(ierr);
     ierr = PetscLogStagePush(stageMSP);CHKERRQ(ierr);
-    ierr = CalculateBEMSolvationEnergy(msp.dm, "lmsp_", BEM_POINT, ctx.epsIn, ctx.epsOut, &pqr, msp.weights, msp.normals, react, &EMSP);CHKERRQ(ierr);
+    ierr = CalculateBEMSolvationEnergy(msp.dm, "lmsp_", BEM_POINT, params, ctx.epsIn, ctx.epsOut, &pqr, msp.weights, msp.normals, react, &EMSP);CHKERRQ(ierr);
     ierr = PetscLogStagePop();CHKERRQ(ierr);
   }
   /* Verification */
@@ -1980,7 +1988,7 @@ int main(int argc, char **argv)
 
     ierr = PetscLogStageRegister("Simple Surface", &stageSimple);CHKERRQ(ierr);
     ierr = PetscLogStagePush(stageSimple);CHKERRQ(ierr);
-    ierr = CalculateBEMSolvationEnergy(dmSimple, "lsimple_", BEM_POINT, ctx.epsIn, ctx.epsOut, &pqr, vertWeightsSimple, vertNormalsSimple, react, &ESimple);CHKERRQ(ierr);
+    ierr = CalculateBEMSolvationEnergy(dmSimple, "lsimple_", BEM_POINT, params, ctx.epsIn, ctx.epsOut, &pqr, vertWeightsSimple, vertNormalsSimple, react, &ESimple);CHKERRQ(ierr);
     ierr = PetscLogStagePop();CHKERRQ(ierr);
     ierr = CalculateAnalyticSolvationEnergy(ctx.epsIn, ctx.epsOut, &pqr, ctx.R, ctx.Nmax, react, &Eref);CHKERRQ(ierr);
     ierr = PetscPrintf(PETSC_COMM_WORLD, "Eref = %.6f ESurf   = %.6f Error = %.6f Rel. error = %.4f\n", Eref, ESurf,   Eref-ESurf,   (Eref-ESurf)/Eref);CHKERRQ(ierr);
