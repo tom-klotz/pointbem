@@ -1,23 +1,23 @@
 CFLAGS = -I.
 
-testSrfOnSurfacePoints: testSrfOnSurfacePoints.o surface.o
+testSrfOnSurfacePoints: testSrfOnSurfacePoints.o surface.o sphere.o
 	${CLINKER} -o $@ $^ ${PETSC_LIB}
 	${DSYMUTIL} $@
 
 regression:
-	PYTHONPATH=${PYTHONPATH}:.. ${PETSC_DIR}/config/builder2.py check [testSrfOnSurfacePoints.c,surface.c] --regParams=testParams ${ARGS}
+	PYTHONPATH=${PYTHONPATH}:.. ${PETSC_DIR}/config/builder2.py check [testSrfOnSurfacePoints.c,surface.c,sphere.c] --regParams=testParams ${ARGS}
 
 test_sphere:
-	PYTHONPATH=${PYTHONPATH}:.. ${PETSC_DIR}/config/builder2.py check [testSrfOnSurfacePoints.c,surface.c] --regParams=sphereParams ${ARGS}
+	PYTHONPATH=${PYTHONPATH}:.. ${PETSC_DIR}/config/builder2.py check [testSrfOnSurfacePoints.c,surface.c,sphere.c] --regParams=sphereParams ${ARGS}
 
 test_arg:
-	PYTHONPATH=${PYTHONPATH}:.. ${PETSC_DIR}/config/builder2.py check [testSrfOnSurfacePoints.c,surface.c] --regParams=argParams ${ARGS}
+	PYTHONPATH=${PYTHONPATH}:.. ${PETSC_DIR}/config/builder2.py check [testSrfOnSurfacePoints.c,surface.c,sphere.c] --regParams=argParams ${ARGS}
 
 test_asp:
-	PYTHONPATH=${PYTHONPATH}:.. ${PETSC_DIR}/config/builder2.py check [testSrfOnSurfacePoints.c,surface.c] --regParams=aspParams ${ARGS}
+	PYTHONPATH=${PYTHONPATH}:.. ${PETSC_DIR}/config/builder2.py check [testSrfOnSurfacePoints.c,surface.c,sphere.c] --regParams=aspParams ${ARGS}
 
 asym_sphere:
-	PYTHONPATH=${PYTHONPATH}:.. ${PETSC_DIR}/config/builder2.py check [testSrfOnSurfacePoints.c,surface.c] --regParams=asymParams ${ARGS}
+	PYTHONPATH=${PYTHONPATH}:.. ${PETSC_DIR}/config/builder2.py check [testSrfOnSurfacePoints.c,surface.c,sphere.c] --regParams=asymParams ${ARGS}
 
 figures_sphere:
 	./meshConvergence.py --type=sphere --output=meshConvSphere
