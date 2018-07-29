@@ -7,5 +7,8 @@ typedef struct {
   Vec R;   /* Charge radii */
 } PQRData;
 
+PetscErrorCode PQRCreateFromPDB(MPI_Comm comm, const char pdbFile[], const char crgFile[], PQRData *pqr);
+PetscErrorCode PQRViewFromOptions(PQRData *pqr);
+PetscErrorCode PQRDestroy(PQRData *pqr);
 
 #endif

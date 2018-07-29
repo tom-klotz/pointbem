@@ -324,3 +324,114 @@ PetscErrorCode computePotentialSpherical(PQRData *pqr, PetscInt Nmax, Vec Bnm, V
   PetscFunctionReturn(0);
 }
 
+
+#undef __FUNCT__
+#define __FUNCT__ "makeSphereChargeDistribution"
+/*
+  Select a set of point charges from a grid with spacing dx which are inside sphere of radius R, and delta away from the surface
+*/
+PetscErrorCode makeSphereChargeDistribution(PetscReal R, PetscInt numCharges, PetscReal dx, PetscReal delta, PQRData *data)
+{
+  PetscRandom     rand;
+  const PetscReal maxChargeValue = 0.85;
+  PetscInt        numPoints      = 0, *select, c;
+  PetscReal       x, y, z;
+  PetscErrorCode  ierr;
+
+  PetscFunctionBeginUser;
+  {
+    PetscReal vals[8];
+    PetscInt  nmax = 8, i;
+    PetscBool flg;
+
+    ierr = PetscOptionsGetRealArray(NULL, NULL, "-test", vals, &nmax, &flg);CHKERRQ(ierr);
+    if (flg) {
+      numCharges = nmax/4;
+      ierr = VecCreate(PETSC_COMM_WORLD, &data->q);CHKERRQ(ierr);
+      ierr = VecSetSizes(data->q, numCharges, PETSC_DETERMINE);CHKERRQ(ierr);
+      ierr = PetscObjectSetName((PetscObject) data->q, "Atomic Charges");CHKERRQ(ierr);
+      ierr = VecSetFromOptions(data->q);CHKERRQ(ierr);
+      ierr = VecCreate(PETSC_COMM_WORLD, &data->xyz);CHKERRQ(ierr);
+      ierr = VecSetSizes(data->xyz, numCharges*3, PETSC_DETERMINE);CHKERRQ(ierr);
+      ierr = PetscObjectSetName((PetscObject) data->xyz, "Atomic XYZ");CHKERRQ(ierr);
+      ierr = VecSetBlockSize(data->xyz, 3);CHKERRQ(ierr);
+      ierr = VecSetFromOptions(data->xyz);CHKERRQ(ierr);
+      ierr = VecDuplicate(data->q, &data->R);CHKERRQ(ierr);
+      ierr = PetscObjectSetName((PetscObject) data->R, "Atomic radii");CHKERRQ(ierr);
+      ierr = VecSet(data->R, 0.0);CHKERRQ(ierr);
+      for (i = 0; i < numCharges; ++i) {
+        ierr = VecSetValues(data->q, 1, &i, &vals[i*4], INSERT_VALUES);CHKERRQ(ierr);
+        ierr = VecSetValuesBlocked(data->xyz, 1, &i, &vals[i*4+1], INSERT_VALUES);CHKERRQ(ierr);
+      }
+      PetscFunctionReturn(0);
+    }
+  }
+  if (delta < 0.0) delta = dx;
+
+  /* Form a grid of points [-R, R]^3 with spacing dx */
+  for (z = -R; z < R; z += dx) {
+    for (y = -R; y < R; y += dx) {
+      for (x = -R; x < R; x += dx) {
+        const PetscReal dist = sqrt(x*x + y*y + z*z);
+
+        if (dist < R - delta) ++numPoints;
+      }
+    }
+  }
+
+  ierr = VecCreate(PETSC_COMM_WORLD, &data->q);CHKERRQ(ierr);
+  ierr = VecSetSizes(data->q, numCharges, PETSC_DETERMINE);CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject) data->q, "Atomic Charges");CHKERRQ(ierr);
+  ierr = VecSetFromOptions(data->q);CHKERRQ(ierr);
+  ierr = VecCreate(PETSC_COMM_WORLD, &data->xyz);CHKERRQ(ierr);
+  ierr = VecSetSizes(data->xyz, numCharges*3, PETSC_DETERMINE);CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject) data->xyz, "Atomic XYZ");CHKERRQ(ierr);
+  ierr = VecSetBlockSize(data->xyz, 3);CHKERRQ(ierr);
+  ierr = VecSetFromOptions(data->xyz);CHKERRQ(ierr);
+
+  ierr = PetscCalloc1(numPoints, &select);CHKERRQ(ierr);
+  if ((numCharges >= 0) && (numCharges < numPoints)) {
+    ierr = PetscRandomCreate(PETSC_COMM_WORLD, &rand);CHKERRQ(ierr);
+    ierr = PetscRandomSetFromOptions(rand);CHKERRQ(ierr);
+    ierr = PetscRandomSetInterval(rand, 0, numPoints);CHKERRQ(ierr);
+    for (c = 0; c < numCharges; ++c) {
+      ierr = PetscRandomGetValueReal(rand, &x);CHKERRQ(ierr);
+      if (select[(PetscInt) PetscFloorReal(x)]) --c;
+      select[(PetscInt) PetscFloorReal(x)] = 1;
+    }
+    ierr = PetscRandomDestroy(&rand);CHKERRQ(ierr);
+  }
+  
+  ierr = PetscRandomCreate(PETSC_COMM_WORLD, &rand);CHKERRQ(ierr);
+  ierr = PetscRandomSetFromOptions(rand);CHKERRQ(ierr);
+  ierr = PetscRandomSetInterval(rand, -maxChargeValue, maxChargeValue);CHKERRQ(ierr);
+  numPoints = 0; c = 0;
+  for (z = -R; z < R; z += dx) {
+    for (y = -R; y < R; y += dx) {
+      for (x = -R; x < R; x += dx) {
+        const PetscReal dist   = sqrt(x*x + y*y + z*z);
+        PetscReal       pos[3] = {x, y, z}, q;
+
+        if (dist < R - delta) {
+          if (select[numPoints]) {
+            ierr = PetscRandomGetValueReal(rand, &q);CHKERRQ(ierr);
+            ierr = VecSetValues(data->q, 1, &c, &q, INSERT_VALUES);CHKERRQ(ierr);
+            ierr = VecSetValuesBlocked(data->xyz, 1, &c, pos, INSERT_VALUES);CHKERRQ(ierr);
+            ++c;
+          }
+          ++numPoints;
+        }
+      }
+    }
+  }
+  ierr = PetscRandomDestroy(&rand);CHKERRQ(ierr);
+  ierr = PetscFree(select);CHKERRQ(ierr);
+
+  ierr = VecDuplicate(data->q, &data->R);CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject) data->R, "Atomic radii");CHKERRQ(ierr);
+  ierr = VecSet(data->R, 0.0);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+
+
