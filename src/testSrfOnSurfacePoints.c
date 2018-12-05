@@ -1068,8 +1068,11 @@ PetscErrorCode makeBEMPcmQualReactionPotentialNonlinear(DM dm, BEMType bem, HCon
   //ierr = MatDiagonalSet(A, d, ADD_VALUES);CHKERRQ(ierr);
   //ierr = VecDestroy(&d);CHKERRQ(ierr);
 
-  ierr = MatCreateVecs(B, NULL, &t0);CHKERRQ(ierr);
+  ierr = VecDuplicate(w, &t0);CHKERRQ(ierr);
   ierr = VecDuplicate(t0, &t1);CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject) t0, "Coulomb_Surface_Potential");CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject) t1, "Reaction_Surface_Potential");CHKERRQ(ierr);
+
   //ierr = MatMult(B, pqr->q, t0);CHKERRQ(ierr);
 
 
@@ -1110,7 +1113,8 @@ PetscErrorCode makeBEMPcmQualReactionPotentialNonlinear(DM dm, BEMType bem, HCon
   ierr = SNESDestroy(&snes);CHKERRQ(ierr);
   */
 
-
+  ierr = VecViewFromOptions(t1, NULL, "-charge_view");CHKERRQ(ierr);
+  
   ierr = MatMult(C, t1, react);CHKERRQ(ierr);
   ierr = VecDestroy(&t0);CHKERRQ(ierr);
   ierr = VecDestroy(&t1);CHKERRQ(ierr);
@@ -1388,7 +1392,7 @@ int main(int argc, char **argv)
   ierr = PetscLogStageRegister("Point Surface MF", &stageSurfMF);CHKERRQ(ierr);
   ierr = PetscLogStageRegister("Panel Surface", &stagePanel);CHKERRQ(ierr);
   ierr = PetscLogStagePush(stageSurf);CHKERRQ(ierr);
-  HContext params = {.alpha = 0.0, .beta=-60, .gamma=-0.5};
+  HContext params = {.alpha = 0.5, .beta=-60, .gamma=-0.5};
   ierr = CalculateBEMSolvationEnergy(dm, "lsrf_", BEM_POINT, params, ctx.epsIn, ctx.epsOut, &pqr, vertWeights, vertNormals, react, &ESurf);CHKERRQ(ierr);
   ierr = PetscLogStagePop();CHKERRQ(ierr);
   ierr = PetscLogStagePush(stageSurfMF);CHKERRQ(ierr);

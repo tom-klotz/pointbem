@@ -252,17 +252,32 @@ PetscErrorCode loadSrfIntoSurfacePoints(MPI_Comm comm, const char filename[], Ve
   ierr = DMPlexGetHeightStratum(*dm, 0, &cStart, &cEnd);CHKERRQ(ierr);
   ierr = DMPlexGetDepthStratum(*dm, 0, &vStart, &vEnd);CHKERRQ(ierr);
   /* TODO Jay has a pass where he eliminates vertices of low weight, or which are too close to another vertex */
+  ierr = DMSetFromOptions(*dm);CHKERRQ(ierr);
+  ierr = DMViewFromOptions(*dm, NULL, "-dm_view");CHKERRQ(ierr);
+  {
+    PetscDS prob;
+    PetscFE fe;
+    PetscSpace sp;
+    PetscInt dim, order;
 
+    ierr = DMGetDimension(*dm, &dim);CHKERRQ(ierr);
+    ierr = DMGetDS(*dm, &prob);CHKERRQ(ierr);
+    ierr = PetscFECreateDefault(comm, dim, 1, PETSC_TRUE, "potential_", -1, &fe);CHKERRQ(ierr);
+    ierr = PetscFEGetBasisSpace(fe, &sp);CHKERRQ(ierr);
+    ierr = PetscSpaceGetDegree(sp, &order, NULL);CHKERRQ(ierr);
+    if (order != 1) SETERRQ(comm, PETSC_ERR_ARG_WRONG, "Must have a linear discretization. Try using -potential_petscspace_degree 1");
+    ierr = PetscDSSetDiscretization(prob, 0, (PetscObject) fe);CHKERRQ(ierr);
+    ierr = PetscDSSetFromOptions(prob);CHKERRQ(ierr);
+    ierr = PetscFEDestroy(&fe);CHKERRQ(ierr);
+  }
 
   ierr = VecCreate(comm, area);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) *area, "panel areas");CHKERRQ(ierr);
   ierr = VecSetSizes(*area, cEnd-cStart, PETSC_DETERMINE);CHKERRQ(ierr);
   ierr = VecSetType(*area, VECSTANDARD);CHKERRQ(ierr);
 
-  ierr = VecCreate(comm, w);CHKERRQ(ierr);
+  ierr = DMCreateGlobalVector(*dm, w);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) *w, "vertex weights");CHKERRQ(ierr);
-  ierr = VecSetSizes(*w, vEnd-vStart, PETSC_DETERMINE);CHKERRQ(ierr);
-  ierr = VecSetType(*w, VECSTANDARD);CHKERRQ(ierr);
   ierr = VecSet(*w, 0.0);CHKERRQ(ierr);
 
   ierr = VecGetArray(*w, &weight);CHKERRQ(ierr);
