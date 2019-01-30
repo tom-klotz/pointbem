@@ -1,6 +1,10 @@
 CFLAGS = -I.
 
-testSrfOnSurfacePoints: testSrfOnSurfacePoints.o surface.o sphere.o molecule.o
+testSrfOnSurfacePoints: testSrfOnSurfacePoints.o surface.o sphere.o molecule.o BEM.o
+	${CLINKER} -o $@ $^ ${PETSC_LIB}
+	${DSYMUTIL} $@
+
+calcSolvationEnergy: calcSolvationEnergy.o BEM.o surface.o molecule.o sphere.o
 	${CLINKER} -o $@ $^ ${PETSC_LIB}
 	${DSYMUTIL} $@
 
