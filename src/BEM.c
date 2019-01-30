@@ -347,6 +347,8 @@ PetscErrorCode makeSurfaceToSurfacePanelOperators_Laplace(DM dm, Vec w, Vec n, M
   if (V) {ierr = MatAssemblyBegin(*V, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);ierr = MatAssemblyEnd(*V, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);}
   if (K) {ierr = MatAssemblyBegin(*K, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);ierr = MatAssemblyEnd(*K, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);}
   ierr = PetscLogEventEnd(CalcStoS_Event, 0, 0, 0, 0);CHKERRQ(ierr);
+  //output K if desired
+  ierr = MatViewFromOptions(*K, NULL, "-k_view");CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -585,6 +587,8 @@ PetscErrorCode makeSurfaceToSurfacePointOperators_Laplace(Vec coordinates, Vec w
   if (V) {ierr = MatAssemblyBegin(*V, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);ierr = MatAssemblyEnd(*V, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);}
   if (K) {ierr = MatAssemblyBegin(*K, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);ierr = MatAssemblyEnd(*K, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);}
   ierr = PetscLogEventEnd(CalcStoS_Event, 0, 0, 0, 0);CHKERRQ(ierr);
+  //output K if desire
+  ierr = MatViewFromOptions(*K, NULL, "-k_view");CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 

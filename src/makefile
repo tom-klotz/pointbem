@@ -5,7 +5,7 @@ testSrfOnSurfacePoints: testSrfOnSurfacePoints.o surface.o sphere.o molecule.o B
 	${DSYMUTIL} $@
 
 calcSolvationEnergy: calcSolvationEnergy.o BEM.o surface.o molecule.o sphere.o
-	${CLINKER} -o $@ $^ ${PETSC_LIB}
+	${CLINKER} -o $@ $^ ${PETSC_LIB} ${SLEPC_EPS_LIB}
 	${DSYMUTIL} $@
 
 regression:
@@ -53,3 +53,4 @@ msp:
 
 include ${PETSC_DIR}/lib/petsc/conf/variables
 include ${PETSC_DIR}/lib/petsc/conf/rules
+include ${SLEPC_DIR}/lib/slepc/conf/slepc_common

@@ -1,5 +1,6 @@
 #include <petsc.h>
 #include <petsc/private/dmpleximpl.h>
+#include <slepceps.h>
 #include "constants.h"
 #include "surface.h"
 #include "molecule.h"
@@ -44,7 +45,7 @@ int main(int argc, char **argv)
   PetscScalar energy;
   PetscErrorCode ierr;
   
-  ierr = PetscInitialize(&argc, &argv, NULL, NULL);CHKERRQ(ierr);
+  ierr = SlepcInitialize(&argc, &argv, NULL, NULL);CHKERRQ(ierr);
   ierr = PetscLogDefaultBegin();CHKERRQ(ierr);
   ierr = ProcessOptions(PETSC_COMM_WORLD, &ctx);CHKERRQ(ierr);
   //ierr = ProcessSolvationOptions(PETSC_COMM_WORLD, &ctx);CHKERRQ(ierr);
