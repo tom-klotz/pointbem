@@ -5,8 +5,16 @@ testSrfOnSurfacePoints: testSrfOnSurfacePoints.o surface.o sphere.o molecule.o B
 	${DSYMUTIL} $@
 
 calcSolvationEnergy: calcSolvationEnergy.o BEM.o surface.o molecule.o sphere.o
+	${CLINKER} -o $@ $^ ${PETSC_LIB}
+	${DSYMUTIL} $@
+
+calcEigs: calcEigs.o
 	${CLINKER} -o $@ $^ ${PETSC_LIB} ${SLEPC_EPS_LIB}
 	${DSYMUTIL} $@
+
+ex7: ex7.o chkopts
+	-${CLINKER} -o ex7 ex7.o ${SLEPC_EPS_LIB}
+	${RM} ex7.o
 
 regression:
 	PYTHONPATH=${PYTHONPATH}:.. ${PETSC_DIR}/config/builder2.py check [testSrfOnSurfacePoints.c,surface.c,sphere.c,molecule.c] --regParams=testParams ${ARGS}

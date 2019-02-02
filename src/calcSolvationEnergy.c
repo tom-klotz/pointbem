@@ -1,6 +1,6 @@
 #include <petsc.h>
 #include <petsc/private/dmpleximpl.h>
-#include <slepceps.h>
+//#include <slepceps.h>
 #include "constants.h"
 #include "surface.h"
 #include "molecule.h"
@@ -45,7 +45,7 @@ int main(int argc, char **argv)
   PetscScalar energy;
   PetscErrorCode ierr;
   
-  ierr = SlepcInitialize(&argc, &argv, NULL, NULL);CHKERRQ(ierr);
+  ierr = PetscInitialize(&argc, &argv, NULL, NULL);CHKERRQ(ierr);
   ierr = PetscLogDefaultBegin();CHKERRQ(ierr);
   ierr = ProcessOptions(PETSC_COMM_WORLD, &ctx);CHKERRQ(ierr);
   //ierr = ProcessSolvationOptions(PETSC_COMM_WORLD, &ctx);CHKERRQ(ierr);
@@ -68,7 +68,7 @@ int main(int argc, char **argv)
 
   HContext params = {.alpha = ctx.alpha, .beta=ctx.beta, .gamma=ctx.gamma};
 
-  ierr = CalculateBEMSolvationEnergy(dm, "whocares", BEM_POINT_MF, params, ctx.epsIn, ctx.epsOut, &pqr, vertWeights, vertNormals, react, &energy);CHKERRQ(ierr);
+  ierr = CalculateBEMSolvationEnergy(dm, &ctx, "whocares", BEM_POINT_MF, params, ctx.epsIn, ctx.epsOut, &pqr, vertWeights, vertNormals, react, &energy);CHKERRQ(ierr);
 
   ierr = PetscPrintf(PETSC_COMM_WORLD, "We have calculated the Energy to be %.6f\n", energy);CHKERRQ(ierr);
   ierr = PetscFinalize();

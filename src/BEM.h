@@ -31,6 +31,7 @@ typedef struct {
   char      basename[PETSC_MAX_PATH_LEN];
   char      srfFile[PETSC_MAX_PATH_LEN];
   char      pntFile[PETSC_MAX_PATH_LEN];
+  char      kFile[PETSC_MAX_PATH_LEN];
   /* Point BEM parameters */
   PetscReal density;    /* Density of points on surface */
   /* Sphere setup */
@@ -62,7 +63,7 @@ PetscErrorCode NonlinearPicard(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscErr
 PetscErrorCode makeBEMPcmQualReactionPotentialNonlinear(DM dm, BEMType bem, HContext params, PetscReal epsIn, PetscReal epsOut, PQRData *pqr, Vec coordinates, Vec w, Vec n, Vec react);
 PetscErrorCode makeBEMPcmQualReactionPotential(DM dm, BEMType bem, PetscReal epsIn, PetscReal epsOut, PQRData *pqr, Vec coordinates, Vec w, Vec n, Vec react);
 PetscErrorCode CalculateAnalyticSolvationEnergy(PetscReal epsIn, PetscReal epsOut, PQRData *pqr, PetscReal R, PetscInt Nmax, Vec react, PetscReal *E);
-PetscErrorCode CalculateBEMSolvationEnergy(DM dm, const char prefix[], BEMType bem, HContext params, PetscReal epsIn, PetscReal epsOut, PQRData *pqr, Vec w, Vec n, Vec react, PetscReal *E);
+PetscErrorCode CalculateBEMSolvationEnergy(DM dm, SolvationContext *ctx, const char prefix[], BEMType bem, HContext params, PetscReal epsIn, PetscReal epsOut, PQRData *pqr, Vec w, Vec n, Vec react, PetscReal *E);
 PetscErrorCode ProcessOptions(MPI_Comm comm, SolvationContext *ctx);
 PetscErrorCode workprectests(int argc, char **argv);
 #endif

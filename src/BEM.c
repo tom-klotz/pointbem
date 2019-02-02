@@ -347,8 +347,6 @@ PetscErrorCode makeSurfaceToSurfacePanelOperators_Laplace(DM dm, Vec w, Vec n, M
   if (V) {ierr = MatAssemblyBegin(*V, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);ierr = MatAssemblyEnd(*V, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);}
   if (K) {ierr = MatAssemblyBegin(*K, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);ierr = MatAssemblyEnd(*K, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);}
   ierr = PetscLogEventEnd(CalcStoS_Event, 0, 0, 0, 0);CHKERRQ(ierr);
-  //output K if desired
-  ierr = MatViewFromOptions(*K, NULL, "-k_view");CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -587,8 +585,7 @@ PetscErrorCode makeSurfaceToSurfacePointOperators_Laplace(Vec coordinates, Vec w
   if (V) {ierr = MatAssemblyBegin(*V, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);ierr = MatAssemblyEnd(*V, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);}
   if (K) {ierr = MatAssemblyBegin(*K, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);ierr = MatAssemblyEnd(*K, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);}
   ierr = PetscLogEventEnd(CalcStoS_Event, 0, 0, 0, 0);CHKERRQ(ierr);
-  //output K if desire
-  ierr = MatViewFromOptions(*K, NULL, "-k_view");CHKERRQ(ierr);
+
   PetscFunctionReturn(0);
 }
 
@@ -920,7 +917,7 @@ PetscErrorCode NonlinearPicard(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscErr
     ierr = VecAXPY(errvec, -1.0, *sol); CHKERRQ(ierr);
     ierr = VecNorm(errvec, NORM_2, &err); CHKERRQ(ierr);
     
-    printf("THE ERROR IS: %15.15f\n", err);
+    ierr = PetscPrintf(PETSC_COMM_WORLD, "THE ERROR IS: %15.15f\n");CHKERRQ(ierr);
     //printf("sol:\n");
     //ierr = VecView(*sol, PETSC_VIEWER_STDOUT_SELF); CHKERRQ(ierr);
   }
@@ -978,6 +975,12 @@ PetscErrorCode makeBEMPcmQualReactionPotentialNonlinear(DM dm, BEMType bem, HCon
   default:
     SETERRQ1(PETSC_COMM_SELF, PETSC_ERR_ARG_WRONG, "Invalid BEM type: %d", bem);
   }
+  //view K from options
+  //ierr = MatViewFromOptions(K, NULL, "-k_view");CHKERRQ(ierr);
+
+  //ierr = PetscViewerMatlabOpen(PETSC_COMM_WORLD, ctx->
+  
+  
   /* C = chargesurfop.slpToCharges */
   ierr = MatScale(C, 4.0*PETSC_PI);CHKERRQ(ierr);
   /* A = surfsurfop.K */
@@ -1098,6 +1101,10 @@ PetscErrorCode makeBEMPcmQualReactionPotential(DM dm, BEMType bem, PetscReal eps
   default:
     SETERRQ1(PETSC_COMM_SELF, PETSC_ERR_ARG_WRONG, "Invalid BEM type: %d", bem);
   }
+  //view K from options
+  printf("\n\nDO WE GET HERE?\n\n");
+  ierr = MatViewFromOptions(A, NULL, "-k_view");CHKERRQ(ierr);
+
   /* C = chargesurfop.slpToCharges */
   ierr = MatScale(C, 4.0*PETSC_PI);CHKERRQ(ierr);
   /* A = surfsurfop.K */
@@ -1209,7 +1216,7 @@ PetscErrorCode CalculateAnalyticSolvationEnergy(PetscReal epsIn, PetscReal epsOu
 
 .seealso: doAnalytical()
 @*/
-PetscErrorCode CalculateBEMSolvationEnergy(DM dm, const char prefix[], BEMType bem, HContext params, PetscReal epsIn, PetscReal epsOut, PQRData *pqr, Vec w, Vec n, Vec react, PetscReal *E)
+PetscErrorCode CalculateBEMSolvationEnergy(DM dm, SolvationContext *ctx, const char prefix[], BEMType bem, HContext params, PetscReal epsIn, PetscReal epsOut, PQRData *pqr, Vec w, Vec n, Vec react, PetscReal *E)
 {
   const PetscReal q     = ELECTRON_CHARGE;
   const PetscReal Na    = AVOGADRO_NUMBER;
@@ -1251,6 +1258,21 @@ PetscErrorCode CalculateBEMSolvationEnergy(DM dm, const char prefix[], BEMType b
     ierr = PetscLogEventBegin(CalcE_Event, L, react, pqr->q, 0);CHKERRQ(ierr);
     break;
   }
+
+  //outputs K if provided as option by user
+  {
+    PetscBool flg;
+    PetscViewer view;
+    Mat K;
+    ierr = PetscOptionsHasName(NULL, NULL, "-k_view", &flg);
+    if(flg) {
+      ierr = makeSurfaceToSurfacePointOperators_Laplace(coords, w, n, NULL, &K);CHKERRQ(ierr);
+      ierr = PetscViewerBinaryOpen(PETSC_COMM_WORLD, ctx->kFile, FILE_MODE_WRITE, &view);CHKERRQ(ierr);
+      ierr = MatView(K, view);CHKERRQ(ierr);
+      ierr = PetscViewerDestroy(&view);CHKERRQ(ierr);
+    }
+  }
+  
   ierr = VecDot(pqr->q, react, E);CHKERRQ(ierr);
   *E  *= cf * 0.5;
   ierr = PetscLogEventEnd(CalcE_Event, L, react, pqr->q, 0);CHKERRQ(ierr);
@@ -1289,6 +1311,7 @@ PetscErrorCode ProcessOptions(MPI_Comm comm, SolvationContext *ctx)
   ierr = PetscOptionsReal("-epsilon_solvent", "The dielectric coefficient of the solvent", "testSrfOnSurfacePoints", ctx->epsOut, &ctx->epsOut, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsString("-pdb_filename", "The filename for the .pdb file", "testSrfOnSurfacePoints", ctx->pdbFile, ctx->pdbFile, sizeof(ctx->pdbFile), NULL);CHKERRQ(ierr);
   ierr = PetscOptionsString("-crg_filename", "The filename for the .crg file", "testSrfOnSurfacePoints", ctx->crgFile, ctx->crgFile, sizeof(ctx->crgFile), NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsString("-k_view", "The filename for matlab output of K matrix", "testSrfOnSurfacePoints", ctx->kFile, ctx->kFile, sizeof(ctx->kFile), NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-is_sphere", "Use a spherical test case", "testSrfOnSurfacePoints", ctx->isSphere, &ctx->isSphere, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsInt("-num_charges", "The number of atomic charges in the solute", "testSrfOnSurfacePoints", ctx->numCharges, &ctx->numCharges, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsString("-srf_base", "The basename for the .srf file", "testSrfOnSurfacePoints", ctx->basename, ctx->basename, sizeof(ctx->basename), NULL);CHKERRQ(ierr);
@@ -1371,18 +1394,18 @@ PetscErrorCode workprectests(int argc, char **argv)
   ierr = PetscLogStageRegister("Panel Surface", &stagePanel);CHKERRQ(ierr);
   ierr = PetscLogStagePush(stageSurf);CHKERRQ(ierr);
   HContext params = {.alpha = 0.5, .beta=-60, .gamma=-0.5};
-  ierr = CalculateBEMSolvationEnergy(dm, "lsrf_", BEM_POINT, params, ctx.epsIn, ctx.epsOut, &pqr, vertWeights, vertNormals, react, &ESurf);CHKERRQ(ierr);
+  ierr = CalculateBEMSolvationEnergy(dm, &ctx, "lsrf_", BEM_POINT, params, ctx.epsIn, ctx.epsOut, &pqr, vertWeights, vertNormals, react, &ESurf);CHKERRQ(ierr);
   ierr = PetscLogStagePop();CHKERRQ(ierr);
   ierr = PetscLogStagePush(stageSurfMF);CHKERRQ(ierr);
-  ierr = CalculateBEMSolvationEnergy(dm, "lsrf_mf_", BEM_POINT_MF, params, ctx.epsIn, ctx.epsOut, &pqr, vertWeights, vertNormals, react, &ESurfMF);CHKERRQ(ierr);
+  ierr = CalculateBEMSolvationEnergy(dm, &ctx, "lsrf_mf_", BEM_POINT_MF, params, ctx.epsIn, ctx.epsOut, &pqr, vertWeights, vertNormals, react, &ESurfMF);CHKERRQ(ierr);
   ierr = PetscLogStagePop();CHKERRQ(ierr);
   ierr = PetscLogStagePush(stagePanel);CHKERRQ(ierr);
-  ierr = CalculateBEMSolvationEnergy(dm, "lpanel_", BEM_PANEL, params, ctx.epsIn, ctx.epsOut, &pqr, panelAreas, vertNormals, react, &EPanel);CHKERRQ(ierr);
+  ierr = CalculateBEMSolvationEnergy(dm, &ctx, "lpanel_", BEM_PANEL, params, ctx.epsIn, ctx.epsOut, &pqr, panelAreas, vertNormals, react, &EPanel);CHKERRQ(ierr);
   ierr = PetscLogStagePop();CHKERRQ(ierr);
   if (msp.weights) {
     ierr = PetscLogStageRegister("MSP Surface", &stageMSP);CHKERRQ(ierr);
     ierr = PetscLogStagePush(stageMSP);CHKERRQ(ierr);
-    ierr = CalculateBEMSolvationEnergy(msp.dm, "lmsp_", BEM_POINT, params, ctx.epsIn, ctx.epsOut, &pqr, msp.weights, msp.normals, react, &EMSP);CHKERRQ(ierr);
+    ierr = CalculateBEMSolvationEnergy(msp.dm, &ctx, "lmsp_", BEM_POINT, params, ctx.epsIn, ctx.epsOut, &pqr, msp.weights, msp.normals, react, &EMSP);CHKERRQ(ierr);
     ierr = PetscLogStagePop();CHKERRQ(ierr);
   }
   /* Verification */
@@ -1397,7 +1420,7 @@ PetscErrorCode workprectests(int argc, char **argv)
     
     ierr = PetscLogStageRegister("Simple Surface", &stageSimple);CHKERRQ(ierr);
     ierr = PetscLogStagePush(stageSimple);CHKERRQ(ierr);
-    ierr = CalculateBEMSolvationEnergy(dmSimple, "lsimple_", BEM_POINT, params, ctx.epsIn, ctx.epsOut, &pqr, vertWeightsSimple, vertNormalsSimple, react, &ESimple);CHKERRQ(ierr);
+    ierr = CalculateBEMSolvationEnergy(dmSimple, &ctx, "lsimple_", BEM_POINT, params, ctx.epsIn, ctx.epsOut, &pqr, vertWeightsSimple, vertNormalsSimple, react, &ESimple);CHKERRQ(ierr);
     ierr = PetscLogStagePop();CHKERRQ(ierr);
     ierr = CalculateAnalyticSolvationEnergy(ctx.epsIn, ctx.epsOut, &pqr, ctx.R, ctx.Nmax, react, &Eref);CHKERRQ(ierr);
     ierr = PetscPrintf(PETSC_COMM_WORLD, "Eref = %.6f ESurf   = %.6f Error = %.6f Rel. error = %.4f\n", Eref, ESurf,   Eref-ESurf,   (Eref-ESurf)/Eref);CHKERRQ(ierr);
