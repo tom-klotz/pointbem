@@ -16,6 +16,35 @@ ex7: ex7.o chkopts
 	-${CLINKER} -o ex7 ex7.o ${SLEPC_EPS_LIB}
 	${RM} ex7.o
 
+spheremat:
+	./calcSolvationEnergy -srf_base ../geometry/sphere_R6_vdens0 -num_charges 10 -nmax 25 -srf_num 0125 -density 0.125 -ksp_rtol 1.0e-10 -snes_linesearch_type basic -snes_type ksponly -potential_petscspace_degree 1 -alpha 0.5 -beta -60 -gamma -0.5 -k_view output/Ksphere0125.mat
+	./calcSolvationEnergy -srf_base ../geometry/sphere_R6_vdens0 -num_charges 10 -nmax 25 -srf_num 025 -density 0.25 -ksp_rtol 1.0e-10 -snes_linesearch_type basic -snes_type ksponly -potential_petscspace_degree 1 -alpha 0.5 -beta -60 -gamma -0.5 -k_view output/Ksphere025.mat
+	./calcSolvationEnergy -srf_base ../geometry/sphere_R6_vdens0 -num_charges 10 -nmax 25 -srf_num 05 -density 0.5 -ksp_rtol 1.0e-10 -snes_linesearch_type basic -snes_type ksponly -potential_petscspace_degree 1 -alpha 0.5 -beta -60 -gamma -0.5 -k_view output/Ksphere05.mat
+	./calcSolvationEnergy -srf_base ../geometry/sphere_R6_vdens -num_charges 10 -nmax 25 -srf_num 1 -density 1.0 -ksp_rtol 1.0e-10 -snes_linesearch_type basic -snes_type ksponly -potential_petscspace_degree 1 -alpha 0.5 -beta -60 -gamma -0.5 -k_view output/Ksphere1.mat
+	./calcSolvationEnergy -srf_base ../geometry/sphere_R6_vdens -num_charges 10 -nmax 25 -srf_num 2 -density 2.0 -ksp_rtol 1.0e-10 -snes_linesearch_type basic -snes_type ksponly -potential_petscspace_degree 1 -alpha 0.5 -beta -60 -gamma -0.5 -k_view output/Ksphere2.mat
+	./calcSolvationEnergy -srf_base ../geometry/sphere_R6_vdens -num_charges 10 -nmax 25 -srf_num 3 -density 3.0 -ksp_rtol 1.0e-10 -snes_linesearch_type basic -snes_type ksponly -potential_petscspace_degree 1 -alpha 0.5 -beta -60 -gamma -0.5 -k_view output/Ksphere3.mat
+	./calcSolvationEnergy -srf_base ../geometry/sphere_R6_vdens -num_charges 10 -nmax 25 -srf_num 4 -density 4.0 -ksp_rtol 1.0e-10 -snes_linesearch_type basic -snes_type ksponly -potential_petscspace_degree 1 -alpha 0.5 -beta -60 -gamma -0.5 -k_view output/Ksphere4.mat
+	./calcSolvationEnergy -srf_base ../geometry/sphere_R6_vdens -num_charges 10 -nmax 25 -srf_num 5 -density 5.0 -ksp_rtol 1.0e-10 -snes_linesearch_type basic -snes_type ksponly -potential_petscspace_degree 1 -alpha 0.5 -beta -60 -gamma -0.5 -k_view output/Ksphere5.mat
+	./calcSolvationEnergy -srf_base ../geometry/sphere_R6_vdens -num_charges 10 -nmax 25 -srf_num 6 -density 6.0 -ksp_rtol 1.0e-10 -snes_linesearch_type basic -snes_type ksponly -potential_petscspace_degree 1 -alpha 0.5 -beta -60 -gamma -0.5 -k_view output/Ksphere6.mat
+	./calcSolvationEnergy -srf_base ../geometry/sphere_R6_vdens -num_charges 10 -nmax 25 -srf_num 8 -density 8.0 -ksp_rtol 1.0e-10 -snes_linesearch_type basic -snes_type ksponly -potential_petscspace_degree 1 -alpha 0.5 -beta -60 -gamma -0.5 -k_view output/Ksphere8.mat
+	./calcSolvationEnergy -srf_base ../geometry/sphere_R6_vdens -num_charges 10 -nmax 25 -srf_num 10 -density 10.0 -ksp_rtol 1.0e-10 -snes_linesearch_type basic -snes_type ksponly -potential_petscspace_degree 1 -alpha 0.5 -beta -60 -gamma -0.5 -k_view output/Ksphere10.mat
+
+argmat:
+	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/arg.pdb -crg_filename ../geometry/jr1.crg -srf_base ../geometry/arg_scaledcharmm_ -srf_num 1 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/Karg1.mat
+	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/arg.pdb -crg_filename ../geometry/jr1.crg -srf_base ../geometry/arg_scaledcharmm_ -srf_num 2 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/Karg2.mat
+	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/arg.pdb -crg_filename ../geometry/jr1.crg -srf_base ../geometry/arg_scaledcharmm_ -srf_num 3 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/Karg3.mat
+	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/arg.pdb -crg_filename ../geometry/jr1.crg -srf_base ../geometry/arg_scaledcharmm_ -srf_num 4 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/Karg4.mat
+	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/arg.pdb -crg_filename ../geometry/jr1.crg -srf_base ../geometry/arg_scaledcharmm_ -srf_num 5 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/Karg5.mat
+	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/arg.pdb -crg_filename ../geometry/jr1.crg -srf_base ../geometry/arg_scaledcharmm_ -srf_num 6 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/Karg6.mat
+	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/arg.pdb -crg_filename ../geometry/jr1.crg -srf_base ../geometry/arg_scaledcharmm_ -srf_num 7 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/Karg7.mat
+	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/arg.pdb -crg_filename ../geometry/jr1.crg -srf_base ../geometry/arg_scaledcharmm_ -srf_num 8 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/Karg8.mat
+	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/arg.pdb -crg_filename ../geometry/jr1.crg -srf_base ../geometry/arg_scaledcharmm_ -srf_num 12 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/Karg12.mat
+	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/arg.pdb -crg_filename ../geometry/jr1.crg -srf_base ../geometry/arg_scaledcharmm_ -srf_num 16 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/Karg16.mat
+	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/arg.pdb -crg_filename ../geometry/jr1.crg -srf_base ../geometry/arg_scaledcharmm_ -srf_num 20 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/Karg20.mat
+	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/arg.pdb -crg_filename ../geometry/jr1.crg -srf_base ../geometry/arg_scaledcharmm_ -srf_num 24 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/Karg24.mat
+	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/arg.pdb -crg_filename ../geometry/jr1.crg -srf_base ../geometry/arg_scaledcharmm_ -srf_num 28 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/Karg28.mat
+	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/arg.pdb -crg_filename ../geometry/jr1.crg -srf_base ../geometry/arg_scaledcharmm_ -srf_num 32 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/Karg32.mat
+
 regression:
 	PYTHONPATH=${PYTHONPATH}:.. ${PETSC_DIR}/config/builder2.py check [testSrfOnSurfacePoints.c,surface.c,sphere.c,molecule.c] --regParams=testParams ${ARGS}
 

@@ -1102,8 +1102,8 @@ PetscErrorCode makeBEMPcmQualReactionPotential(DM dm, BEMType bem, PetscReal eps
     SETERRQ1(PETSC_COMM_SELF, PETSC_ERR_ARG_WRONG, "Invalid BEM type: %d", bem);
   }
   //view K from options
-  printf("\n\nDO WE GET HERE?\n\n");
-  ierr = MatViewFromOptions(A, NULL, "-k_view");CHKERRQ(ierr);
+  //printf("\n\nDO WE GET HERE?\n\n");
+  //ierr = MatViewFromOptions(A, NULL, "-k_view");CHKERRQ(ierr);
 
   /* C = chargesurfop.slpToCharges */
   ierr = MatScale(C, 4.0*PETSC_PI);CHKERRQ(ierr);
