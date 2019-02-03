@@ -45,6 +45,21 @@ argmat:
 	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/arg.pdb -crg_filename ../geometry/jr1.crg -srf_base ../geometry/arg_scaledcharmm_ -srf_num 28 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/Karg28.mat
 	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/arg.pdb -crg_filename ../geometry/jr1.crg -srf_base ../geometry/arg_scaledcharmm_ -srf_num 32 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/Karg32.mat
 
+aspmat:
+	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/asp.pdb -crg_filename ../geometry/jd1.crg -srf_base ../geometry/asp_scaledcharmm_ -srf_num 1 -potential_petscspace_degree 1 -k_view output/Kasp1.mat
+	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/asp.pdb -crg_filename ../geometry/jd1.crg -srf_base ../geometry/asp_scaledcharmm_ -srf_num 2 -potential_petscspace_degree 1 -k_view output/Kasp2.mat
+	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/asp.pdb -crg_filename ../geometry/jd1.crg -srf_base ../geometry/asp_scaledcharmm_ -srf_num 3 -potential_petscspace_degree 1 -k_view output/Kasp3.mat
+	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/asp.pdb -crg_filename ../geometry/jd1.crg -srf_base ../geometry/asp_scaledcharmm_ -srf_num 4 -potential_petscspace_degree 1 -k_view output/Kasp4.mat
+	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/asp.pdb -crg_filename ../geometry/jd1.crg -srf_base ../geometry/asp_scaledcharmm_ -srf_num 5 -potential_petscspace_degree 1 -k_view output/Kasp5.mat
+	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/asp.pdb -crg_filename ../geometry/jd1.crg -srf_base ../geometry/asp_scaledcharmm_ -srf_num 6 -potential_petscspace_degree 1 -k_view output/Kasp6.mat
+	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/asp.pdb -crg_filename ../geometry/jd1.crg -srf_base ../geometry/asp_scaledcharmm_ -srf_num 7 -potential_petscspace_degree 1 -k_view output/Kasp7.mat
+	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/asp.pdb -crg_filename ../geometry/jd1.crg -srf_base ../geometry/asp_scaledcharmm_ -srf_num 8 -potential_petscspace_degree 1 -k_view output/Kasp8.mat
+	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/asp.pdb -crg_filename ../geometry/jd1.crg -srf_base ../geometry/asp_scaledcharmm_ -srf_num 12 -potential_petscspace_degree 1 -k_view output/Kasp12.mat
+	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/asp.pdb -crg_filename ../geometry/jd1.crg -srf_base ../geometry/asp_scaledcharmm_ -srf_num 16 -potential_petscspace_degree 1 -k_view output/Kasp16.mat
+	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/asp.pdb -crg_filename ../geometry/jd1.crg -srf_base ../geometry/asp_scaledcharmm_ -srf_num 20 -potential_petscspace_degree 1 -k_view output/Kasp20.mat
+	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/asp.pdb -crg_filename ../geometry/jd1.crg -srf_base ../geometry/asp_scaledcharmm_ -srf_num 24 -potential_petscspace_degree 1 -k_view output/Kasp24.mat
+	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/asp.pdb -crg_filename ../geometry/jd1.crg -srf_base ../geometry/asp_scaledcharmm_ -srf_num 28 -potential_petscspace_degree 1 -k_view output/Kasp28.mat
+	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/asp.pdb -crg_filename ../geometry/jd1.crg -srf_base ../geometry/asp_scaledcharmm_ -srf_num 32 -potential_petscspace_degree 1 -k_view output/Kasp32.mat
 regression:
 	PYTHONPATH=${PYTHONPATH}:.. ${PETSC_DIR}/config/builder2.py check [testSrfOnSurfacePoints.c,surface.c,sphere.c,molecule.c] --regParams=testParams ${ARGS}
 

@@ -1,6 +1,7 @@
 *.o
 src/testSrfOnSurfacePoints.dSYM
 testSrfOnSurfacePoints
+calcSolvationEnergy
 src/example.log
 src/example.log.bkp
 RDict.log
@@ -12,3 +13,5 @@ bin
 *#
 .#*
 *~
+*.mat
+*.mat.info
