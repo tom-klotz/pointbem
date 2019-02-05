@@ -44,9 +44,12 @@ typedef struct {
   PetscInt  Nmax;       /* Order of the multipole expansion */
   /* SLIC model parameters */
   PetscReal alpha, beta, gamma;
+  /* User flags to specify solver */
+  PetscBool forceNonlinear;
 } SolvationContext;
 
 
+PetscErrorCode outputK(SolvationContext *ctx, Mat K);
 PetscErrorCode doAnalytical(PetscReal b, PetscReal epsIn, PetscReal epsOut, PQRData *pqr, PetscInt Nmax, Mat *L);
 PetscErrorCode IntegratePanel(PetscInt numCorners, const PetscReal npanel[], const PetscReal point[], const PetscReal normal[], PetscScalar *fss, PetscScalar *fds, PetscScalar *fess, PetscScalar *feds);
 PetscErrorCode makeSurfaceToSurfacePanelOperators_Laplace(DM dm, Vec w, Vec n, Mat *V, Mat *K);
@@ -60,8 +63,8 @@ PetscErrorCode nonlinearH(Vec E, HContext *ctx, Vec *hEn);
 PetscErrorCode ASCBq(Vec sigma, Vec *Bq, NonlinearContext *ctx);
 PetscErrorCode FormASCNonlinearMatrix(Vec sigma, Mat *A, NonlinearContext *ctx);
 PetscErrorCode NonlinearPicard(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscErrorCode (*rhs)(Vec, Vec*, void*), Vec guess, void *ctx, Vec *sol);
-PetscErrorCode makeBEMPcmQualReactionPotentialNonlinear(DM dm, BEMType bem, HContext params, PetscReal epsIn, PetscReal epsOut, PQRData *pqr, Vec coordinates, Vec w, Vec n, Vec react);
-PetscErrorCode makeBEMPcmQualReactionPotential(DM dm, BEMType bem, PetscReal epsIn, PetscReal epsOut, PQRData *pqr, Vec coordinates, Vec w, Vec n, Vec react);
+PetscErrorCode makeBEMPcmQualReactionPotentialNonlinear(DM dm, BEMType bem, HContext params, SolvationContext *ctx, PetscReal epsIn, PetscReal epsOut, PQRData *pqr, Vec coordinates, Vec w, Vec n, Vec react);
+PetscErrorCode makeBEMPcmQualReactionPotential(DM dm, BEMType bem, SolvationContext *ctx, PetscReal epsIn, PetscReal epsOut, PQRData *pqr, Vec coordinates, Vec w, Vec n, Vec react);
 PetscErrorCode CalculateAnalyticSolvationEnergy(PetscReal epsIn, PetscReal epsOut, PQRData *pqr, PetscReal R, PetscInt Nmax, Vec react, PetscReal *E);
 PetscErrorCode CalculateBEMSolvationEnergy(DM dm, SolvationContext *ctx, const char prefix[], BEMType bem, HContext params, PetscReal epsIn, PetscReal epsOut, PQRData *pqr, Vec w, Vec n, Vec react, PetscReal *E);
 PetscErrorCode ProcessOptions(MPI_Comm comm, SolvationContext *ctx);

@@ -211,6 +211,14 @@ int main(int argc,char **argv)
     ierr = PetscPrintf(PETSC_COMM_WORLD, "Unable to compute largest singular value!\n");CHKERRQ(ierr);
   }
 
+  //calculate and display norm of A
+  PetscReal norm_1, norm_inf;
+  ierr = MatNorm(A, NORM_1, &norm_1);CHKERRQ(ierr);
+  ierr = MatNorm(A, NORM_INFINITY, &norm_inf);CHKERRQ(ierr);
+  ierr = PetscPrintf(PETSC_COMM_WORLD, "The 1-norm is: %5.5f\n", norm_1);CHKERRQ(ierr);
+  ierr = PetscPrintf(PETSC_COMM_WORLD, "The inf-norm is: %5.5f\n", norm_inf);CHKERRQ(ierr);
+
+
     
   /*
      Free work space

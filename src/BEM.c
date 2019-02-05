@@ -341,7 +341,7 @@ PetscErrorCode makeSurfaceToSurfacePanelOperators_Laplace(DM dm, Vec w, Vec n, M
       /* if (Kp) {ierr = MatSetValue(*singleLayer, j, i, fess/4/PETSC_PI, INSERT_VALUES);CHKERRQ(ierr);} */
     }
   }
-  ierr = PetscLogFlops(37 * Np*Np + 91 * Np + 2);CHKERRQ(ierr);
+  ierr = PetscLogFlops(PetscAbsInt(37 * Np*Np + 91 * Np + 2));CHKERRQ(ierr);
   if (V) {ierr = PetscLogFlops(Np*Np);CHKERRQ(ierr);}
   if (K) {ierr = PetscLogFlops(Np*Np);CHKERRQ(ierr);}
   if (V) {ierr = MatAssemblyBegin(*V, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);ierr = MatAssemblyEnd(*V, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);}
@@ -576,9 +576,18 @@ PetscErrorCode makeSurfaceToSurfacePointOperators_Laplace(Vec coordinates, Vec w
       }
     }
   }
-  ierr = PetscLogFlops(16 * Np*Np + 2);CHKERRQ(ierr);
-  if (V) {ierr = PetscLogFlops(2 * Np*Np);CHKERRQ(ierr);}
-  if (K) {ierr = PetscLogFlops(5 * Np*Np);CHKERRQ(ierr);}
+  ierr = PetscLogFlops(PetscAbsInt(16 * Np*Np + 2));CHKERRQ(ierr);
+  ierr = PetscPrintf(PETSC_COMM_WORLD, "Np is %d\n", (Np));CHKERRQ(ierr);
+  ierr = PetscPrintf(PETSC_COMM_WORLD, "abs(Np*Np) is %d\n", PetscAbsInt(5*Np*Np));CHKERRQ(ierr);
+  if (V) {ierr = PetscLogFlops(PetscAbsInt(2 * Np*Np));CHKERRQ(ierr);}
+  if (K) {
+    if(Np >= 20000) {
+      ierr = PetscPrintf(PETSC_COMM_WORLD, "SUCCESS\n");CHKERRQ(ierr);ierr = PetscLogFlops(1);CHKERRQ(ierr);
+    }
+    else {
+      ierr = PetscLogFlops(PetscAbsInt(5 * Np*Np));CHKERRQ(ierr);
+    }
+  }
   ierr = VecRestoreArrayRead(coordinates, &coords);CHKERRQ(ierr);
   ierr = VecRestoreArrayRead(w, &weights);CHKERRQ(ierr);
   ierr = VecRestoreArrayRead(n, &normals);CHKERRQ(ierr);
@@ -586,6 +595,25 @@ PetscErrorCode makeSurfaceToSurfacePointOperators_Laplace(Vec coordinates, Vec w
   if (K) {ierr = MatAssemblyBegin(*K, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);ierr = MatAssemblyEnd(*K, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);}
   ierr = PetscLogEventEnd(CalcStoS_Event, 0, 0, 0, 0);CHKERRQ(ierr);
 
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "outputK"
+PetscErrorCode outputK(SolvationContext *ctx, Mat K) {
+  PetscErrorCode ierr;
+  PetscFunctionBeginUser;
+
+  
+  PetscBool flg;
+  PetscViewer view;
+  ierr = PetscOptionsHasName(NULL, NULL, "-k_view", &flg);
+  if(flg) {
+    ierr = PetscViewerBinaryOpen(PETSC_COMM_WORLD, ctx->kFile, FILE_MODE_WRITE, &view);CHKERRQ(ierr);
+    ierr = MatView(K, view);CHKERRQ(ierr);
+    ierr = PetscViewerDestroy(&view);CHKERRQ(ierr);
+  }
+  
   PetscFunctionReturn(0);
 }
 
@@ -944,7 +972,7 @@ PetscErrorCode NonlinearPicard(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscErr
 
 .seealso: doAnalytical()
 @*/
-PetscErrorCode makeBEMPcmQualReactionPotentialNonlinear(DM dm, BEMType bem, HContext params, PetscReal epsIn, PetscReal epsOut, PQRData *pqr, Vec coordinates, Vec w, Vec n, Vec react)
+PetscErrorCode makeBEMPcmQualReactionPotentialNonlinear(DM dm, BEMType bem, HContext params, SolvationContext *ctx, PetscReal epsIn, PetscReal epsOut, PQRData *pqr, Vec coordinates, Vec w, Vec n, Vec react)
 {
   //const PetscReal epsHat = (epsIn + epsOut)/(epsIn - epsOut);
   //SNES            snes;
@@ -979,7 +1007,10 @@ PetscErrorCode makeBEMPcmQualReactionPotentialNonlinear(DM dm, BEMType bem, HCon
   //ierr = MatViewFromOptions(K, NULL, "-k_view");CHKERRQ(ierr);
 
   //ierr = PetscViewerMatlabOpen(PETSC_COMM_WORLD, ctx->
-  
+
+  //output K if user specifies
+  ierr = outputK(ctx, K);CHKERRQ(ierr);
+
   
   /* C = chargesurfop.slpToCharges */
   ierr = MatScale(C, 4.0*PETSC_PI);CHKERRQ(ierr);
@@ -1037,6 +1068,7 @@ PetscErrorCode makeBEMPcmQualReactionPotentialNonlinear(DM dm, BEMType bem, HCon
   ierr = SNESDestroy(&snes);CHKERRQ(ierr);
   */
 
+  
   ierr = VecViewFromOptions(t1, NULL, "-charge_view");CHKERRQ(ierr);
   
   ierr = MatMult(C, t1, react);CHKERRQ(ierr);
@@ -1071,7 +1103,7 @@ PetscErrorCode makeBEMPcmQualReactionPotentialNonlinear(DM dm, BEMType bem, HCon
 
 .seealso: doAnalytical()
 @*/
-PetscErrorCode makeBEMPcmQualReactionPotential(DM dm, BEMType bem, PetscReal epsIn, PetscReal epsOut, PQRData *pqr, Vec coordinates, Vec w, Vec n, Vec react)
+PetscErrorCode makeBEMPcmQualReactionPotential(DM dm, BEMType bem, SolvationContext *ctx, PetscReal epsIn, PetscReal epsOut, PQRData *pqr, Vec coordinates, Vec w, Vec n, Vec react)
 {
   const PetscReal epsHat = (epsIn + epsOut)/(epsIn - epsOut);
   SNES            snes;
@@ -1248,30 +1280,18 @@ PetscErrorCode CalculateBEMSolvationEnergy(DM dm, SolvationContext *ctx, const c
     ierr = DMGetCoordinatesLocal(dm, &coords);CHKERRQ(ierr);
 
     //alpha=0 runs standard linear problem while alpha!=0 calls nonlinear routine
-    if (params.alpha==0.0) {
-      ierr = makeBEMPcmQualReactionPotential(dm, bem, epsIn, epsOut, pqr, coords, w, n, react);CHKERRQ(ierr);
+    if (params.alpha==0.0 && ctx->forceNonlinear == PETSC_FALSE) {
+      ierr = makeBEMPcmQualReactionPotential(dm, bem, ctx, epsIn, epsOut, pqr, coords, w, n, react);CHKERRQ(ierr);
     }
     else {
-      ierr = makeBEMPcmQualReactionPotentialNonlinear(dm, bem, params, epsIn, epsOut, pqr, coords, w, n, react);CHKERRQ(ierr);
+      ierr = makeBEMPcmQualReactionPotentialNonlinear(dm, bem, params, ctx, epsIn, epsOut, pqr, coords, w, n, react);CHKERRQ(ierr);
     }
     L = NULL;
     ierr = PetscLogEventBegin(CalcE_Event, L, react, pqr->q, 0);CHKERRQ(ierr);
     break;
   }
 
-  //outputs K if provided as option by user
-  {
-    PetscBool flg;
-    PetscViewer view;
-    Mat K;
-    ierr = PetscOptionsHasName(NULL, NULL, "-k_view", &flg);
-    if(flg) {
-      ierr = makeSurfaceToSurfacePointOperators_Laplace(coords, w, n, NULL, &K);CHKERRQ(ierr);
-      ierr = PetscViewerBinaryOpen(PETSC_COMM_WORLD, ctx->kFile, FILE_MODE_WRITE, &view);CHKERRQ(ierr);
-      ierr = MatView(K, view);CHKERRQ(ierr);
-      ierr = PetscViewerDestroy(&view);CHKERRQ(ierr);
-    }
-  }
+
   
   ierr = VecDot(pqr->q, react, E);CHKERRQ(ierr);
   *E  *= cf * 0.5;
@@ -1303,6 +1323,7 @@ PetscErrorCode ProcessOptions(MPI_Comm comm, SolvationContext *ctx)
   //beta and gamma default to non-zero values in case they are not specified
   ctx->beta       = -60;
   ctx->gamma      = -.5;
+  ctx->forceNonlinear = PETSC_FALSE;
   
 
   ierr = PetscStrcpy(ctx->basename, "../geometry/sphere_R6_vdens");CHKERRQ(ierr);
@@ -1321,6 +1342,7 @@ PetscErrorCode ProcessOptions(MPI_Comm comm, SolvationContext *ctx)
   ierr = PetscOptionsReal("-alpha", "SLIC model parameter alpha", "testSrfOnSurfacePoints", ctx->alpha, &ctx->alpha, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsReal("-beta", "SLIC model parameter beta", "testSrfOnSurfacePoints", ctx->beta, &ctx->beta, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsReal("-gamma", "SLIC model parameter gamma", "testSrfOnSurfacePoints", ctx->gamma, &ctx->gamma, NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsBool("-force_nonlinear", "Force model to use nonlinear solver even in linear case", "testSrfOnSurfacePoints", ctx->forceNonlinear, &ctx->forceNonlinear, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsEnd();
   
   ierr = PetscSNPrintf(ctx->srfFile, PETSC_MAX_PATH_LEN-1, "%s%d.srf", ctx->basename, (int) ctx->srfNum);CHKERRQ(ierr);
