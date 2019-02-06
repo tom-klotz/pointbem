@@ -46,6 +46,7 @@ typedef struct {
   PetscReal alpha, beta, gamma;
   /* User flags to specify solver */
   PetscBool forceNonlinear;
+  PetscBool usePanels;
 } SolvationContext;
 
 

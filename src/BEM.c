@@ -1323,7 +1323,9 @@ PetscErrorCode ProcessOptions(MPI_Comm comm, SolvationContext *ctx)
   //beta and gamma default to non-zero values in case they are not specified
   ctx->beta       = -60;
   ctx->gamma      = -.5;
+  //defaults for boolean options
   ctx->forceNonlinear = PETSC_FALSE;
+  ctx->usePanels      = PETSC_FALSE;
   
 
   ierr = PetscStrcpy(ctx->basename, "../geometry/sphere_R6_vdens");CHKERRQ(ierr);
@@ -1343,6 +1345,7 @@ PetscErrorCode ProcessOptions(MPI_Comm comm, SolvationContext *ctx)
   ierr = PetscOptionsReal("-beta", "SLIC model parameter beta", "testSrfOnSurfacePoints", ctx->beta, &ctx->beta, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsReal("-gamma", "SLIC model parameter gamma", "testSrfOnSurfacePoints", ctx->gamma, &ctx->gamma, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-force_nonlinear", "Force model to use nonlinear solver even in linear case", "testSrfOnSurfacePoints", ctx->forceNonlinear, &ctx->forceNonlinear, NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsBool("-use_panels", "Use panel discretization instead of point discretization.", "testSrfOnSurfacePoints", ctx->usePanels, &ctx->usePanels, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsEnd();
   
   ierr = PetscSNPrintf(ctx->srfFile, PETSC_MAX_PATH_LEN-1, "%s%d.srf", ctx->basename, (int) ctx->srfNum);CHKERRQ(ierr);

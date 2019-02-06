@@ -68,7 +68,15 @@ int main(int argc, char **argv)
 
   HContext params = {.alpha = ctx.alpha, .beta=ctx.beta, .gamma=ctx.gamma};
 
-  ierr = CalculateBEMSolvationEnergy(dm, &ctx, "whocares", BEM_PANEL_MF, params, ctx.epsIn, ctx.epsOut, &pqr, panelAreas, vertNormals, react, &energy);CHKERRQ(ierr);
+  ierr = PetscPrintf(PETSC_COMM_WORLD, "Mesh surface area: %6.6f\n", totalArea);CHKERRQ(ierr);  
+  if(ctx.usePanels == PETSC_TRUE) {
+    ierr = PetscPrintf(PETSC_COMM_WORLD, "Using panel discretization...\n");CHKERRQ(ierr);
+    ierr = CalculateBEMSolvationEnergy(dm, &ctx, "whocares", BEM_PANEL_MF, params, ctx.epsIn, ctx.epsOut, &pqr, panelAreas, vertNormals, react, &energy);CHKERRQ(ierr);
+  }
+  else {
+    ierr = PetscPrintf(PETSC_COMM_WORLD, "Using point discretization...\n");CHKERRQ(ierr);
+    ierr = CalculateBEMSolvationEnergy(dm, &ctx, "whocares", BEM_POINT_MF, params, ctx.epsIn, ctx.epsOut, &pqr, vertWeights, vertNormals, react, &energy);CHKERRQ(ierr);
+  }
 
   ierr = PetscPrintf(PETSC_COMM_WORLD, "We have calculated the Energy to be %.6f\n", energy);CHKERRQ(ierr);
   ierr = PetscPrintf(PETSC_COMM_WORLD, "The total area is %6.6f\n", totalArea);CHKERRQ(ierr);
