@@ -111,4 +111,4 @@ srf_arg_noprobe:
 	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker arg.pdb scaled_charmm22.siz arg_scaledcharmm_noprobe_50.srf 0 2.0 50 1 1 0 .
 	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker arg.pdb scaled_charmm22.siz arg_scaledcharmm_noprobe_100.srf 0 2.0 100 1 1 0 .
 
-srf: meshmaker srf_setup srf_sphere srf_arg srf_asp
+srf: meshmaker srf_setup srf_sphere srf_arg srf_asp srf_sphere_noprobe srf_arg_noprobe srf_asp_noprobe

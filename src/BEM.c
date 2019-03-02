@@ -577,11 +577,9 @@ PetscErrorCode makeSurfaceToSurfacePointOperators_Laplace(Vec coordinates, Vec w
     }
   }
   ierr = PetscLogFlops(PetscAbsInt(16 * Np*Np + 2));CHKERRQ(ierr);
-  ierr = PetscPrintf(PETSC_COMM_WORLD, "Np is %d\n", (Np));CHKERRQ(ierr);
-  ierr = PetscPrintf(PETSC_COMM_WORLD, "abs(Np*Np) is %d\n", PetscAbsInt(5*Np*Np));CHKERRQ(ierr);
   if (V) {ierr = PetscLogFlops(PetscAbsInt(2 * Np*Np));CHKERRQ(ierr);}
   if (K) {
-    if(Np >= 20000) {
+    if(Np >= 20000) { //this is really hackey to prevent logging negative flops. If Np is too big, flops wont get recorded
       ierr = PetscPrintf(PETSC_COMM_WORLD, "SUCCESS\n");CHKERRQ(ierr);ierr = PetscLogFlops(1);CHKERRQ(ierr);
     }
     else {
@@ -1137,6 +1135,9 @@ PetscErrorCode makeBEMPcmQualReactionPotential(DM dm, BEMType bem, SolvationCont
   //printf("\n\nDO WE GET HERE?\n\n");
   //ierr = MatViewFromOptions(A, NULL, "-k_view");CHKERRQ(ierr);
 
+  //output K if user specifies
+  ierr = outputK(ctx, A);CHKERRQ(ierr);
+  
   /* C = chargesurfop.slpToCharges */
   ierr = MatScale(C, 4.0*PETSC_PI);CHKERRQ(ierr);
   /* A = surfsurfop.K */
