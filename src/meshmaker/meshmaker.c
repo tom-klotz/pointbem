@@ -25,6 +25,8 @@ PDBentry* PDBentries = NULL;
 unsigned int numPDBentries;
 SIZentry* SIZentries = NULL;
 unsigned int numSIZentries;
+CRGentry* CRGentries = NULL;
+unsigned int numCRGentries;
 
 real dielectricdensity = 1.0;
 real saltdensity = 1.0;
@@ -692,8 +694,8 @@ void writeSRF(char* filename) {
 }
 
 int main(int argc, char* argv[]) {
-   if (argc != 11) {
-      printf("Usage: %s [molecule.pdb/crd/xyzr] [radii.siz] [output.srf] [proberadius] [ionexclusionradius] [dielectricdensity] [saltdensity] [dielectriccode] [saltcode] [prefix]\n", argv[0]);
+   if (argc != 13) {
+      printf("Usage: %s [molecule.pdb/crd/xyzr] [radii.siz] [charges.crg] [output.srf] [output.crg] [proberadius] [ionexclusionradius] [dielectricdensity] [saltdensity] [dielectriccode] [saltcode] [prefix]\n", argv[0]);
       return -1;
    }
 
@@ -705,18 +707,19 @@ int main(int argc, char* argv[]) {
        readPDB(argv[1], &numPDBentries, &PDBentries);
 
     if (strncmp(argv[1] + strlen(argv[1]) - 4, "xyzr", 4)) {
-       readSIZ(argv[2], &numSIZentries, &SIZentries);
-       assignRadiiCharges(PDBentries, numPDBentries, SIZentries, numSIZentries, NULL, 0);
+      readSIZ(argv[2], &numSIZentries, &SIZentries);
+      readCRG(argv[3], &numCRGentries, &CRGentries);
+      assignRadiiCharges(PDBentries, numPDBentries, SIZentries, numSIZentries, CRGentries, numCRGentries);
     }
 
-    proberadius = atof(argv[4]);
-    ionexclusionradius = atof(argv[5]);
-    dielectricdensity = atof(argv[6]);
-    saltdensity = atof(argv[7]);
-    dielectriccode = atoi(argv[8]);
-    saltcode = atoi(argv[9]);
+    proberadius = atof(argv[6]);
+    ionexclusionradius = atof(argv[7]);
+    dielectricdensity = atof(argv[8]);
+    saltdensity = atof(argv[9]);
+    dielectriccode = atoi(argv[10]);
+    saltcode = atoi(argv[11]);
 
-    strcpy(prefix, argv[10]);
+    strcpy(prefix, argv[12]);
 
     switch (saltcode) {
        case SALT_NONE: break;
@@ -760,7 +763,8 @@ int main(int argc, char* argv[]) {
        printf(" %s", saltcavityfilenames[s]);
     printf("\n");
 
-    writeSRF(argv[3]);
-
+    writeSRF(argv[4]);
+    writeCRG(argv[5], PDBentries, numPDBentries);
+		
     return 0;
 }

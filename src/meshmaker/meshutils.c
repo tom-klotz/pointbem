@@ -354,6 +354,45 @@ void readCRG(const char* filename, unsigned int* numCRGentries, CRGentry** CRGen
 #endif
 }
 
+void writeCRG(char* filename, PDBentry *PDBentries, unsigned int numPDBentries)
+{
+  FILE* crgfile = NULL;
+  char line[25];
+  crgfile = fopen(filename, "w");
+  
+  //line = malloc(sizeof(char)*100);
+  
+  if(!crgfile)
+    error("Could not open CRG file %s for writing: %s", filename, strerror(errno));
+
+  fprintf(crgfile, "aaaaaarrrnnnncqqqqqqqq\n");
+  
+
+
+
+  for(int i=0; i<numPDBentries; ++i) {
+    for(int i=0; i<25; ++i)
+      line[i] = ' ';
+    line[24] = '\0';
+    line[23] = '\n';
+    strncpy(line, PDBentries[i].atomname, 6);
+    int size = strlen(PDBentries[i].atomname);
+    for(int j=size; j<6; ++j)
+      line[j] = ' ';
+    strncpy(line+6, PDBentries[i].residuename, 3);
+    size = strlen(PDBentries[i].residuename);
+    printf("RESSIZE: %d\n", size);
+    for(int j=size+6; j<9; ++j)
+      line[j] = ' ';
+    snprintf(line+14, sizeof(char)*9, "% 7.5f", PDBentries[i].charge);
+    fputs(line, crgfile);
+    fputs("\n", crgfile);
+  }
+  
+  fclose(crgfile);
+
+}
+
 void assignRadiiCharges(PDBentry* PDBentries, unsigned int numPDBentries, SIZentry* SIZentries, unsigned int numSIZentries, CRGentry* CRGentries, unsigned int numCRGentries) {
 #ifndef SCATTER
    unsigned int a, r, c, matchlevel;
@@ -397,7 +436,7 @@ void assignRadiiCharges(PDBentry* PDBentries, unsigned int numPDBentries, SIZent
       matchlevel = 0;
 
       for (c = 0; c < numCRGentries; c++) {
-         if ((CRGentries[c].chain == PDBentries[a].chain) && (CRGentries[c].residuenumber == PDBentries[a].residuenumber) && (!strcmp(PDBentries[a].residuename, CRGentries[c].residuelabel)) && (!strcmp(PDBentries[a].atomname, CRGentries[c].atomlabel))) {
+	if ((CRGentries[c].chain == PDBentries[a].chain) && (CRGentries[c].residuenumber == PDBentries[a].residuenumber) && (!strcmp(PDBentries[a].residuename, CRGentries[c].residuelabel)) && (!strcmp(PDBentries[a].atomname, CRGentries[c].atomlabel))) {
             PDBentries[a].charge = CRGentries[c].charge;
             matchlevel = 8;
             break;  /* A complete match, so we can stop here */
