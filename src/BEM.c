@@ -1149,8 +1149,14 @@ PetscErrorCode makeBEMPcmQualReactionPotential(DM dm, BEMType bem, SolvationCont
   ierr = MatDiagonalSet(A, d, ADD_VALUES);CHKERRQ(ierr);
   ierr = VecDestroy(&d);CHKERRQ(ierr);
 
-  ierr = MatCreateVecs(B, NULL, &t0);CHKERRQ(ierr);
+
+  //ierr = MatCreateVecs(B, NULL, &t0);CHKERRQ(ierr);
+  ierr = VecDuplicate(w, &t0);CHKERRQ(ierr);
   ierr = VecDuplicate(t0, &t1);CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject) t0, "Coulomb_Surface_Potential");CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject) t1, "Reaction_Surface_Potential");CHKERRQ(ierr);
+
+
   ierr = MatMult(B, pqr->q, t0);CHKERRQ(ierr);
   
   /* Can do Picard by using the Jacobian that gets made, the rhs that is passed in, and NEWTONLS
@@ -1172,6 +1178,8 @@ PetscErrorCode makeBEMPcmQualReactionPotential(DM dm, BEMType bem, SolvationCont
   ierr = SNESSolve(snes, t0, t1);CHKERRQ(ierr);
   ierr = SNESDestroy(&snes);CHKERRQ(ierr);
 
+  ierr = VecViewFromOptions(t1, NULL, "-charge_view");CHKERRQ(ierr);
+  
   ierr = MatMult(C, t1, react);CHKERRQ(ierr);
   ierr = VecDestroy(&t0);CHKERRQ(ierr);
   ierr = VecDestroy(&t1);CHKERRQ(ierr);
@@ -1334,6 +1342,7 @@ PetscErrorCode ProcessOptions(MPI_Comm comm, SolvationContext *ctx)
   ierr = PetscOptionsReal("-epsilon_solute", "The dielectric coefficient of the solute", "testSrfOnSurfacePoints", ctx->epsIn, &ctx->epsIn, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsReal("-epsilon_solvent", "The dielectric coefficient of the solvent", "testSrfOnSurfacePoints", ctx->epsOut, &ctx->epsOut, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsString("-pdb_filename", "The filename for the .pdb file", "testSrfOnSurfacePoints", ctx->pdbFile, ctx->pdbFile, sizeof(ctx->pdbFile), NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsString("-pqr_filename", "The filename for the .pqr file", "testSrfOnSurfacePoints", ctx->pqrFile, ctx->pqrFile, sizeof(ctx->pqrFile), NULL);CHKERRQ(ierr);
   ierr = PetscOptionsString("-crg_filename", "The filename for the .crg file", "testSrfOnSurfacePoints", ctx->crgFile, ctx->crgFile, sizeof(ctx->crgFile), NULL);CHKERRQ(ierr);
   ierr = PetscOptionsString("-k_view", "The filename for matlab output of K matrix", "testSrfOnSurfacePoints", ctx->kFile, ctx->kFile, sizeof(ctx->kFile), NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-is_sphere", "Use a spherical test case", "testSrfOnSurfacePoints", ctx->isSphere, &ctx->isSphere, NULL);CHKERRQ(ierr);

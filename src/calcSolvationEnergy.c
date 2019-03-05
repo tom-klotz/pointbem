@@ -56,7 +56,14 @@ int main(int argc, char **argv)
     ierr = PQRViewFromOptions(&pqr);CHKERRQ(ierr);
   }
   else {
-    ierr = PQRCreateFromPDB(PETSC_COMM_WORLD, ctx.pdbFile, ctx.crgFile, &pqr);CHKERRQ(ierr);
+    PetscBool flg;
+    ierr = PetscOptionsHasName(NULL, NULL, "-pqr_filename", &flg);CHKERRQ(ierr);
+    if(flg) {
+      ierr = PQRCreateFromPQR(PETSC_COMM_WORLD, ctx.pqrFile, &pqr);CHKERRQ(ierr);
+    }
+    else {
+      ierr = PQRCreateFromPDB(PETSC_COMM_WORLD, ctx.pdbFile, ctx.crgFile, &pqr);CHKERRQ(ierr);
+    }
   }
   
   //initialize react which stores the reaction potential at each point charge location

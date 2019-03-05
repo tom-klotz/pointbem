@@ -48,7 +48,87 @@ void removeWhitespace(char* s) {
 
    free(temp);
 }
+void readPQR(const char* filename, unsigned int* numPDBentries, PDBentry** PDBentries) {
+   FILE* pqrfile = NULL;
+   char line[81], number[9];
+   int atomcount = 0;
 
+   pqrfile = fopen(filename, "r");
+
+   if (!pqrfile)
+      error("Could not open PQR file %s: %s", filename, strerror(errno));
+
+   /* First, read through the file counting the number of ATOM or HETATM lines */
+
+   while (fgets(line, 81, pqrfile)) {
+      if (!strncasecmp(line, "ATOM", 4) || !strncasecmp(line, "HETATM", 6))
+         atomcount++;
+   }
+
+   /* Allocate the memory */
+
+   *PDBentries = (PDBentry*)calloc(atomcount, sizeof(PDBentry));
+
+   if (!(*PDBentries))
+      error("Error in memory allocation: %s", strerror(errno));
+
+   /* Rewind the PDB file */
+
+   rewind(pqrfile);
+
+   /* Now read through again and store the entries */
+
+   *numPDBentries = atomcount;
+
+   atomcount = 0;
+
+   while (fgets(line, 81, pqrfile)) {
+      if (!strncasecmp(line, "ATOM", 4) || !strncasecmp(line, "HETATM", 6)) {
+         strncpy((*PDBentries)[atomcount].record, line, 6);
+         strncpy(number, line + 6, 5);
+         number[5] = '\0';
+         (*PDBentries)[atomcount].atomnumber = atoi(number);
+         strncpy((*PDBentries)[atomcount].atomname, line + 12, 4);
+         (*PDBentries)[atomcount].alternatelocation = line[16];
+         strncpy((*PDBentries)[atomcount].residuename, line + 17, 3);
+         (*PDBentries)[atomcount].chain = line[21];
+         strncpy(number, line + 22, 4);
+         number[4] = '\0';
+         (*PDBentries)[atomcount].residuenumber = atoi(number);
+         (*PDBentries)[atomcount].residueinsertion = line[26];
+         strncpy(number, line + 30, 8);
+         number[8] = '\0';
+         (*PDBentries)[atomcount].x = atof(number);
+         strncpy(number, line + 38, 8);
+         number[8] = '\0';
+         (*PDBentries)[atomcount].y = atof(number);
+         strncpy(number, line + 46, 8);
+         number[8] = '\0';
+         (*PDBentries)[atomcount].z = atof(number);
+         strncpy(number, line + 54, 6);
+         number[6] = '\0';
+         (*PDBentries)[atomcount].charge = atof(number);
+	 //printf("CHARGE: %5.5f\n", atof(number));
+         strncpy(number, line + 62, 6);
+         number[6] = '\0';
+         (*PDBentries)[atomcount].radius = atof(number);
+	 printf("RADIUS: %5.5f\n", atof(number));
+         //strncpy(number, line + 67, 3);
+         //number[3] = '\0';
+         //(*PDBentries)[atomcount].footnotenumber = atof(number);
+
+         removeWhitespace((*PDBentries)[atomcount].record);
+         removeWhitespace((*PDBentries)[atomcount].atomname);
+         removeWhitespace((*PDBentries)[atomcount].residuename);
+
+         atomcount++;
+      }
+   }
+
+   fclose(pqrfile);
+
+
+}
 void readPDB(const char* filename, unsigned int* numPDBentries, PDBentry** PDBentries) {
    FILE* pdbfile = NULL;
    char line[81], number[9];
@@ -381,7 +461,6 @@ void writeCRG(char* filename, PDBentry *PDBentries, unsigned int numPDBentries)
       line[j] = ' ';
     strncpy(line+6, PDBentries[i].residuename, 3);
     size = strlen(PDBentries[i].residuename);
-    printf("RESSIZE: %d\n", size);
     for(int j=size+6; j<9; ++j)
       line[j] = ' ';
     snprintf(line+14, sizeof(char)*9, "% 7.5f", PDBentries[i].charge);

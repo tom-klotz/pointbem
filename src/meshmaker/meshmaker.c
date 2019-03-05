@@ -700,13 +700,16 @@ int main(int argc, char* argv[]) {
    }
 
     if (!strncmp(argv[1] + strlen(argv[1]) - 3, "crd", 3))
-       readCRD(argv[1], &numPDBentries, &PDBentries);
+      readCRD(argv[1], &numPDBentries, &PDBentries);
     else if (!strncmp(argv[1] + strlen(argv[1]) - 4, "xyzr", 4))
-       readXYZR(argv[1], &numPDBentries, &PDBentries);
+      readXYZR(argv[1], &numPDBentries, &PDBentries);
+    else if (!strncmp(argv[1] + strlen(argv[1]) - 3, "pqr", 3))
+      readPQR(argv[1], &numPDBentries, &PDBentries);
     else
-       readPDB(argv[1], &numPDBentries, &PDBentries);
-
-    if (strncmp(argv[1] + strlen(argv[1]) - 4, "xyzr", 4)) {
+      readPDB(argv[1], &numPDBentries, &PDBentries);
+    
+    
+    if (strncmp(argv[1] + strlen(argv[1]) - 4, "xyzr", 4) && strncmp(argv[1] + strlen(argv[1]) - 3, "pqr", 3)) {
       readSIZ(argv[2], &numSIZentries, &SIZentries);
       readCRG(argv[3], &numCRGentries, &CRGentries);
       assignRadiiCharges(PDBentries, numPDBentries, SIZentries, numSIZentries, CRGentries, numCRGentries);

@@ -26,6 +26,7 @@ typedef struct {
   PetscReal epsOut;     /* solvent dielectric coefficient */
   char      pdbFile[PETSC_MAX_PATH_LEN]; /* Chemists are crazy and have never heard of normalized data */
   char      crgFile[PETSC_MAX_PATH_LEN];
+  char      pqrFile[PETSC_MAX_PATH_LEN];
   /* Surface file */
   PetscInt  srfNum;     /* Resolution of mesh file */
   char      basename[PETSC_MAX_PATH_LEN];

@@ -8,6 +8,7 @@ typedef struct {
 } PQRData;
 
 PetscErrorCode PQRCreateFromPDB(MPI_Comm comm, const char pdbFile[], const char crgFile[], PQRData *pqr);
+PetscErrorCode PQRCreateFromPQR(MPI_Comm comm, const char pqrFile[], PQRData *pqr);
 PetscErrorCode PQRViewFromOptions(PQRData *pqr);
 PetscErrorCode PQRDestroy(PQRData *pqr);
 
