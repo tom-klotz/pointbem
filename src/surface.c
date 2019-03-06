@@ -279,7 +279,7 @@ PetscErrorCode loadSrfIntoSurfacePoints(MPI_Comm comm, const char filename[], Ve
   ierr = DMCreateGlobalVector(*dm, w);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) *w, "vertex weights");CHKERRQ(ierr);
   ierr = VecSet(*w, 0.0);CHKERRQ(ierr);
-
+  
   ierr = VecGetArray(*w, &weight);CHKERRQ(ierr);
   ierr = VecGetArray(*area, &a);CHKERRQ(ierr);
   for (c = cStart; c < cEnd; ++c) {
@@ -289,7 +289,12 @@ PetscErrorCode loadSrfIntoSurfacePoints(MPI_Comm comm, const char filename[], Ve
 
     ierr = DMPlexComputeCellGeometryFVM(*dm, c, &area, centroid, normal);CHKERRQ(ierr);
     a[c-cStart] = area;
+    if(area != area) {
+      area = 0;
+      ierr = PetscPrintf(PETSC_COMM_WORLD, "Area of panel is NaN! Setting to 0.\n");CHKERRQ(ierr);
+    }
     totArea += area;
+    
     ierr = DMPlexGetTransitiveClosure(*dm, c, PETSC_TRUE, &clSize, &closure);CHKERRQ(ierr);
     for (cl = 0; cl < clSize*2; cl += 2) {
       const PetscInt v = closure[cl];
@@ -303,6 +308,7 @@ PetscErrorCode loadSrfIntoSurfacePoints(MPI_Comm comm, const char filename[], Ve
   }
   ierr = VecRestoreArray(*w, &weight);CHKERRQ(ierr);
   ierr = VecRestoreArray(*area, &a);CHKERRQ(ierr);
+  printf("TOTAL AREA: %15.15e\n", totArea);
   if (totalArea) *totalArea = totArea;
   PetscFunctionReturn(0);
 }

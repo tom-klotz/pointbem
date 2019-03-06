@@ -924,7 +924,7 @@ PetscErrorCode NonlinearPicard(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscErr
 
   //ierr = VecView(errvec, PETSC_VIEWER_STDOUT_SELF);
   PetscReal err = 1; 
-  for(int iter=1; iter<=10; ++iter)
+  for(int iter=1; iter<=6; ++iter)
   {
     printf("\n\nITERATION NUMBER %d\n", iter);
     ierr = (*lhs)(*sol, &A, ctx); CHKERRQ(ierr);
