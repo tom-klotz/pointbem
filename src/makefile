@@ -81,18 +81,18 @@ spheremat_noprobe_panel:
 #	./calcSolvationEnergy -srf_base ../geometry/sphere_R6_vdens_noprobe_ -num_charges 10 -nmax 25 -srf_num 40 -density 40.0 -ksp_rtol 1.0e-10 -snes_linesearch_type basic -snes_type ksponly -potential_petscspace_degree 1 -k_view output/K_sphere_noprobe_panel_40.mat -use_panels 1
 
 argpqr_point:
-	./calcSolvationEnergy -is_sphere 0 -pqr_filename ../geometry/arg.pqr -srf_base ../geometry/argpqr_scaledcharmm_ -srf_num 1 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/K_argpqr_point_1.mat -dm_view hdf5:sol.h5 -charge_view hdf5:sol.h5::append
+	./calcSolvationEnergy -is_sphere 0 -pqr_filename ../geometry/arg.pqr -srf_base ../geometry/argpqr_scaledcharmm_ -srf_num 1 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/K_argpqr_point_1.mat -dm_view hdf5:sol.h5 -charge_view hdf5:sol.h5::append -use_panels 1
 
 1hco_point:
-#	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/1hco.pqr -srf_base ../geometry/1hco_scaledcharmm_ -srf_num 1 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/K_1hco_point_1.mat -dm_view hdf5:sol1hco1.h5 -charge_view hdf5:sol1hco1.h5::append -force_nonlinear 1
-	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/1hco.pqr -srf_base ../geometry/1hco_scaledcharmm_ -srf_num 2 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/K_1hco_point_2.mat -dm_view hdf5:sol1hco2.h5 -charge_view hdf5:sol1hco2.h5::append -force_nonlinear 1
-	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/1hco.pqr -srf_base ../geometry/1hco_scaledcharmm_ -srf_num 3 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/K_1hco_point_3.mat -dm_view hdf5:sol1hco3.h5 -charge_view hdf5:sol1hco3.h5::append -force_nonlinear 1
+	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/1hco.pqr -srf_base ../geometry/1hco_scaledcharmm_ -srf_num 1 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/K_1hco_point_1.mat -dm_view hdf5:sol1hco1.h5 -charge_view hdf5:sol1hco1.h5::append -force_nonlinear 1 -alpha 0.5 -beta -60 -gamma -0.5
+	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/1hco.pqr -srf_base ../geometry/1hco_scaledcharmm_ -srf_num 2 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/K_1hco_point_2.mat -dm_view hdf5:sol1hco2.h5 -charge_view hdf5:sol1hco2.h5::append -force_nonlinear 1 -alpha 0.5 -beta -60 -gamma -0.5
+	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/1hco.pqr -srf_base ../geometry/1hco_scaledcharmm_ -srf_num 3 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/K_1hco_point_3.mat -dm_view hdf5:sol1hco3.h5 -charge_view hdf5:sol1hco3.h5::append -force_nonlinear 1 -alpha 0.5 -beta -60 -gamma -0.5
 
 arg_point_solution:
 	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/arg.pdb -crg_filename ../geometry/jr1.crg -srf_base ../geometry/arg_scaledcharmm_ -srf_num 1 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/K_arg_point_1.mat -dm_view hdf5:sol.h5 -charge_view hdf5:sol.h5::append
 
 argmat_point:
-	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/arg.pdb -crg_filename ../geometry/jr1.crg -srf_base ../geometry/arg_scaledcharmm_ -srf_num 1 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/K_arg_point_1.mat
+	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/arg.pdb -crg_filename ../geometry/jr1.crg -srf_base ../geometry/arg_scaledcharmm_ -srf_num 1 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/K_arg_point_1.mat -force_nonlinear 1 -alpha .5 -beta -60 -gamma -0.5
 	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/arg.pdb -crg_filename ../geometry/jr1.crg -srf_base ../geometry/arg_scaledcharmm_ -srf_num 2 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/K_arg_point_2.mat
 	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/arg.pdb -crg_filename ../geometry/jr1.crg -srf_base ../geometry/arg_scaledcharmm_ -srf_num 3 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/K_arg_point_3.mat
 	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/arg.pdb -crg_filename ../geometry/jr1.crg -srf_base ../geometry/arg_scaledcharmm_ -srf_num 4 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/K_arg_point_4.mat
@@ -109,9 +109,9 @@ argmat_point:
 #	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/arg.pdb -crg_filename ../geometry/jr1.crg -srf_base ../geometry/arg_scaledcharmm_ -srf_num 50 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/K_arg_point_50.mat
 
 argmat_panel:
-	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/arg.pdb -crg_filename ../geometry/jr1.crg -srf_base ../geometry/arg_scaledcharmm_ -srf_num 1 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/K_arg_panel_1.mat -use_panels 1
-	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/arg.pdb -crg_filename ../geometry/jr1.crg -srf_base ../geometry/arg_scaledcharmm_ -srf_num 2 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/K_arg_panel_2.mat -use_panels 1
-	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/arg.pdb -crg_filename ../geometry/jr1.crg -srf_base ../geometry/arg_scaledcharmm_ -srf_num 3 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/K_arg_panel_3.mat -use_panels 1
+	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/arg.pdb -crg_filename ../geometry/jr1.crg -srf_base ../geometry/arg_scaledcharmm_ -srf_num 1 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/K_arg_panel_1.mat -use_panels 1 -dm_view hdf5:solarg1.h5 -charge_view hdf5:solarg1.h5::append -force_nonlinear 1 -alpha .5 -beta -60 -gamma -0.5
+	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/arg.pdb -crg_filename ../geometry/jr1.crg -srf_base ../geometry/arg_scaledcharmm_ -srf_num 2 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/K_arg_panel_2.mat -use_panels 1 -dm_view hdf5:solarg2.h5 -charge_view hdf5:solarg2.h5::append -force_nonlinear 1 -alpha .5 -beta -60 -gamma -0.5
+	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/arg.pdb -crg_filename ../geometry/jr1.crg -srf_base ../geometry/arg_scaledcharmm_ -srf_num 3 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/K_arg_panel_3.mat -use_panels 1 -dm_view hdf5:solarg3.h5 -charge_view hdf5:solarg3.h5::append -force_nonlinear 1 -alpha .5 -beta -60 -gamma -0.5
 	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/arg.pdb -crg_filename ../geometry/jr1.crg -srf_base ../geometry/arg_scaledcharmm_ -srf_num 4 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/K_arg_panel_4.mat -use_panels 1
 	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/arg.pdb -crg_filename ../geometry/jr1.crg -srf_base ../geometry/arg_scaledcharmm_ -srf_num 5 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/K_arg_panel_5.mat -use_panels 1
 	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/arg.pdb -crg_filename ../geometry/jr1.crg -srf_base ../geometry/arg_scaledcharmm_ -srf_num 6 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/K_arg_panel_6.mat -use_panels 1

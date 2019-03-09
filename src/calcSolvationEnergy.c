@@ -75,7 +75,11 @@ int main(int argc, char **argv)
 
   HContext params = {.alpha = ctx.alpha, .beta=ctx.beta, .gamma=ctx.gamma};
 
-  ierr = PetscPrintf(PETSC_COMM_WORLD, "Mesh surface area: %6.6f\n", totalArea);CHKERRQ(ierr);  
+  ierr = PetscPrintf(PETSC_COMM_WORLD, "Mesh surface area: %6.6f\n", totalArea);CHKERRQ(ierr);
+  PetscInt cStart, cEnd, vStart, vEnd;
+  ierr = DMPlexGetHeightStratum(dm, 0, &cStart, &cEnd);CHKERRQ(ierr);
+  ierr = DMPlexGetDepthStratum(dm, 0, &vStart, &vEnd);CHKERRQ(ierr);
+  ierr = PetscPrintf(PETSC_COMM_WORLD, "SRF %D vertices %D cells\n", vEnd-vStart, cEnd-cStart);CHKERRQ(ierr);
   if(ctx.usePanels == PETSC_TRUE) {
     ierr = PetscPrintf(PETSC_COMM_WORLD, "Using panel discretization...\n");CHKERRQ(ierr);
     ierr = CalculateBEMSolvationEnergy(dm, &ctx, "whocares", BEM_PANEL_MF, params, ctx.epsIn, ctx.epsOut, &pqr, panelAreas, vertNormals, react, &energy);CHKERRQ(ierr);

@@ -178,6 +178,15 @@ PetscErrorCode DMPlexCreateBardhan(MPI_Comm comm, PetscViewer viewerVert, PetscV
   }
   ierr = VecRestoreArray(coordinates, &cds);CHKERRQ(ierr);
   ierr = DMSetCoordinatesLocal(*dm, coordinates);CHKERRQ(ierr);
+
+  //my section for the panels
+  //PetscSection newCoordSection;
+  //ierr = PetscSectionCreate(PetscObjectComm((PetscObject)dm), &newCoordSection);
+  //ierr = PetscSectionSetNumFields(newCoordSection, 1);CHKERRQ(ierr);
+  //ierr = PetscSectionSetFieldComponents(newCoordSection, 0, dimEmbed);CHKERRQ(ierr);
+  //ierr = PetscSectionSetChart(newCoordSection, 0, numCells);CHKERRQ(ierr);
+
+  
   ierr = VecDestroy(&coordinates);CHKERRQ(ierr);
   ierr = VecCreate(comm, n);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) *n, "normals");CHKERRQ(ierr);

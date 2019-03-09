@@ -296,6 +296,7 @@ PetscErrorCode makeSurfaceToSurfacePanelOperators_Laplace(DM dm, Vec w, Vec n, M
   ierr = DMGetCoordinateSection(dm, &coordSection);CHKERRQ(ierr);
   ierr = DMGetCoordinatesLocal(dm, &coordinates);CHKERRQ(ierr);
   ierr = DMPlexGetHeightStratum(dm, 0, NULL, &Np);CHKERRQ(ierr);
+  ierr = PetscPrintf(PETSC_COMM_WORLD, "THE Np IS: %d\n", Np);CHKERRQ(ierr);
   if (V) {ierr = MatCreateSeqDense(PETSC_COMM_SELF, Np, Np, NULL, V);CHKERRQ(ierr);}
   if (K) {ierr = MatCreateSeqDense(PETSC_COMM_SELF, Np, Np, NULL, K);CHKERRQ(ierr);}
   for (i = 0; i < Np; ++i) {
@@ -555,6 +556,7 @@ PetscErrorCode makeSurfaceToSurfacePointOperators_Laplace(Vec coordinates, Vec w
   PetscFunctionBeginUser;
   ierr = PetscLogEventBegin(CalcStoS_Event, 0, 0, 0, 0);CHKERRQ(ierr);
   ierr = VecGetLocalSize(w, &Np);CHKERRQ(ierr);
+  ierr = PetscPrintf(PETSC_COMM_WORLD, "THE Np IS: %d\n", Np);CHKERRQ(ierr);
   if (V) {ierr = MatCreateSeqDense(PETSC_COMM_SELF, Np, Np, NULL, V);CHKERRQ(ierr);}
   if (K) {ierr = MatCreateSeqDense(PETSC_COMM_SELF, Np, Np, NULL, K);CHKERRQ(ierr);}
   ierr = VecGetArrayRead(coordinates, &coords);CHKERRQ(ierr);
@@ -885,6 +887,7 @@ PetscErrorCode FormASCNonlinearMatrix(Vec sigma, Mat *A, NonlinearContext *ctx)
   + lhs - function used to evaluate matrix A(x)
   . rhs - function evaluating the right hand side b(x)
   - guess - initial guess
+  - weights - weights associated with each discretization point used to calculate error (optional, uses 1 for weighs as default)
   - ctx - additional user supplied data passed to lhs and rhs function evaluations (optional)
 
   Output Parameters:
@@ -894,7 +897,7 @@ PetscErrorCode FormASCNonlinearMatrix(Vec sigma, Mat *A, NonlinearContext *ctx)
 
 .seealso: makeBEMPcmQualReactionPotential
 @*/
-PetscErrorCode NonlinearPicard(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscErrorCode (*rhs)(Vec, Vec*, void*), Vec guess, void *ctx, Vec *sol)
+PetscErrorCode NonlinearPicard(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscErrorCode (*rhs)(Vec, Vec*, void*), Vec guess, Vec weights, void *ctx, Vec *sol)
 {
   PetscErrorCode ierr;
   PetscInt dim;
@@ -924,7 +927,7 @@ PetscErrorCode NonlinearPicard(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscErr
 
   //ierr = VecView(errvec, PETSC_VIEWER_STDOUT_SELF);
   PetscReal err = 1; 
-  for(int iter=1; iter<=6; ++iter)
+  for(int iter=1; iter<=10; ++iter)
   {
     printf("\n\nITERATION NUMBER %d\n", iter);
     ierr = (*lhs)(*sol, &A, ctx); CHKERRQ(ierr);
@@ -941,9 +944,18 @@ PetscErrorCode NonlinearPicard(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscErr
 
     //calculate current error, will be inaccurate on first iteration
     ierr = VecAXPY(errvec, -1.0, *sol); CHKERRQ(ierr);
-    ierr = VecNorm(errvec, NORM_2, &err); CHKERRQ(ierr);
+    if(weights == NULL) {
+      ierr = VecNorm(errvec, NORM_2, &err); CHKERRQ(ierr);
+    }
+    else {
+      //checks weights size is correct
+      ierr = VecPointwiseMult(errvec, errvec, errvec);CHKERRQ(ierr);
+      ierr = VecPointwiseMult(errvec, errvec, weights);CHKERRQ(ierr);
+      ierr = VecSum(errvec, &err);CHKERRQ(ierr);
+    }
+
     
-    ierr = PetscPrintf(PETSC_COMM_WORLD, "THE ERROR IS: %15.15f\n");CHKERRQ(ierr);
+    ierr = PetscPrintf(PETSC_COMM_WORLD, "THE ERROR IS: %5.5e\n", err);CHKERRQ(ierr);
     //printf("sol:\n");
     //ierr = VecView(*sol, PETSC_VIEWER_STDOUT_SELF); CHKERRQ(ierr);
   }
@@ -1021,6 +1033,9 @@ PetscErrorCode makeBEMPcmQualReactionPotentialNonlinear(DM dm, BEMType bem, HCon
   //ierr = MatDiagonalSet(A, d, ADD_VALUES);CHKERRQ(ierr);
   //ierr = VecDestroy(&d);CHKERRQ(ierr);
 
+  PetscInt w_size;
+  ierr = VecGetSize(w, &w_size);CHKERRQ(ierr);
+  printf("THE SIZE OF W IS: %d\n", w_size);
   ierr = VecDuplicate(w, &t0);CHKERRQ(ierr);
   ierr = VecDuplicate(t0, &t1);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) t0, "Coulomb_Surface_Potential");CHKERRQ(ierr);
@@ -1056,7 +1071,7 @@ PetscErrorCode makeBEMPcmQualReactionPotentialNonlinear(DM dm, BEMType bem, HCon
   nctx.Bq     = &t0;
   nctx.w      = &w;
   nctx.hctx   = &params;
-  ierr = NonlinearPicard((PetscErrorCode (*)(Vec, Mat*, void*))&FormASCNonlinearMatrix, (PetscErrorCode (*)(Vec, Vec*, void*))&ASCBq, guess, &nctx, &t1); CHKERRQ(ierr);
+  ierr = NonlinearPicard((PetscErrorCode (*)(Vec, Mat*, void*))&FormASCNonlinearMatrix, (PetscErrorCode (*)(Vec, Vec*, void*))&ASCBq, guess, w, &nctx, &t1); CHKERRQ(ierr);
   /*
   ierr = SNESCreate(PetscObjectComm((PetscObject) dm), &snes);CHKERRQ(ierr);
   ierr = SNESSetFunction(snes, t2, ComputeBEMResidual, &A);CHKERRQ(ierr);
@@ -1066,7 +1081,7 @@ PetscErrorCode makeBEMPcmQualReactionPotentialNonlinear(DM dm, BEMType bem, HCon
   ierr = SNESDestroy(&snes);CHKERRQ(ierr);
   */
 
-  
+  ierr = PetscPrintf(PETSC_COMM_WORLD, "viewing charges...\n");
   ierr = VecViewFromOptions(t1, NULL, "-charge_view");CHKERRQ(ierr);
   
   ierr = MatMult(C, t1, react);CHKERRQ(ierr);
@@ -1178,6 +1193,7 @@ PetscErrorCode makeBEMPcmQualReactionPotential(DM dm, BEMType bem, SolvationCont
   ierr = SNESSolve(snes, t0, t1);CHKERRQ(ierr);
   ierr = SNESDestroy(&snes);CHKERRQ(ierr);
 
+  ierr = PetscPrintf(PETSC_COMM_WORLD, "viewing charges...\n");
   ierr = VecViewFromOptions(t1, NULL, "-charge_view");CHKERRQ(ierr);
   
   ierr = MatMult(C, t1, react);CHKERRQ(ierr);
