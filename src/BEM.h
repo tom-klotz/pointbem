@@ -15,6 +15,7 @@ typedef struct {
   PetscReal epsOut;
   Mat*      B;
   Mat*      K;
+  Mat*      Elec;
   Vec*      Bq;
   Vec*      w;
   HContext* hctx;
@@ -57,13 +58,14 @@ PetscErrorCode IntegratePanel(PetscInt numCorners, const PetscReal npanel[], con
 PetscErrorCode makeSurfaceToSurfacePanelOperators_Laplace(DM dm, Vec w, Vec n, Mat *V, Mat *K);
 PetscErrorCode makeSurfaceToChargePanelOperators(DM dm, Vec w, Vec n, PQRData *pqr, Mat *potential, Mat *field, Mat *singleLayer, Mat *doubleLayer);
 PetscErrorCode makeSurfaceToChargePointOperators(Vec coordinates, Vec w, Vec n, PQRData *pqr, Mat *potential, Mat *field, Mat *singleLayer, Mat *doubleLayer);
-PetscErrorCode makeSurfaceToSurfacePointOperators_Laplace(Vec coordinates, Vec w, Vec n, Mat *V, Mat *K);
+PetscErrorCode makeSurfaceToSurfacePointOperators_Laplace(Vec coordinates, Vec w, Vec n, Mat *V, Mat *K, Mat *Elec);
 PetscErrorCode makeBEMPcmQualMatrices(DM dm, BEMType bem, PetscReal epsIn, PetscReal epsOut, PQRData *pqr, Vec coordinates, Vec w, Vec n, Mat *L);
 PetscErrorCode ComputeBEMResidual(SNES snes, Vec x, Vec r, void *ctx);
 PetscErrorCode ComputeBEMJacobian(SNES snes, Vec x, Mat J, Mat P, void *ctx);
 PetscErrorCode nonlinearH(Vec E, HContext *ctx, Vec *hEn);
 PetscErrorCode ASCBq(Vec sigma, Vec *Bq, NonlinearContext *ctx);
 PetscErrorCode FormASCNonlinearMatrix(Vec sigma, Mat *A, NonlinearContext *ctx);
+PetscErrorCode FormASCNonlinearMatrixNoWeights(Vec sigma, Mat *A, NonlinearContext *ctx);
 PetscErrorCode NonlinearPicard(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscErrorCode (*rhs)(Vec, Vec*, void*), Vec guess, Vec weights, void *ctx, Vec *sol);
 PetscErrorCode makeBEMPcmQualReactionPotentialNonlinear(DM dm, BEMType bem, HContext params, SolvationContext *ctx, PetscReal epsIn, PetscReal epsOut, PQRData *pqr, Vec coordinates, Vec w, Vec n, Vec react);
 PetscErrorCode makeBEMPcmQualReactionPotential(DM dm, BEMType bem, SolvationContext *ctx, PetscReal epsIn, PetscReal epsOut, PQRData *pqr, Vec coordinates, Vec w, Vec n, Vec react);
