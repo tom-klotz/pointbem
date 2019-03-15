@@ -91,6 +91,11 @@ argpqr_point:
 arg_point_solution:
 	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/arg.pdb -crg_filename ../geometry/jr1.crg -srf_base ../geometry/arg_scaledcharmm_ -srf_num 1 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/K_arg_point_1.mat -dm_view hdf5:sol.h5 -charge_view hdf5:sol.h5::append
 
+argmat_test:
+	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/arg.pdb -crg_filename ../geometry/jr1.crg -srf_base ../geometry/arg_scaledcharmm_ -srf_num 5 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/K_arg_point_5.mat -force_nonlinear 1 -alpha .5 -beta -60 -gamma -0.5
+	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/arg.pdb -crg_filename ../geometry/jr1.crg -srf_base ../geometry/arg_scaledcharmm_ -srf_num 5 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/K_arg_point_5.mat -force_nonlinear 1 -alpha .5 -beta -60 -gamma -0.5 -fast_picard 1
+
+
 argmat_point:
 	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/arg.pdb -crg_filename ../geometry/jr1.crg -srf_base ../geometry/arg_scaledcharmm_ -srf_num 1 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/K_arg_point_1.mat -force_nonlinear 1 -alpha .5 -beta -60 -gamma -0.5
 	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/arg.pdb -crg_filename ../geometry/jr1.crg -srf_base ../geometry/arg_scaledcharmm_ -srf_num 2 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/K_arg_point_2.mat -force_nonlinear 1 -alpha .5 -beta -60 -gamma -0.5

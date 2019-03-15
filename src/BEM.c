@@ -921,6 +921,77 @@ PetscErrorCode FormASCNonlinearMatrix(Vec sigma, Mat *A, NonlinearContext *ctx)
   PetscFunctionReturn(0);
 }
 
+#undef __FUNCT__
+#define __FUNCT__ "FastRHS"
+PetscErrorCode FastRHS(Vec sigma, Vec *out, NonlinearContext *ctx)
+{
+
+  PetscReal epsOut, epsIn, epsHat;
+  PetscInt  dim;
+  Mat*      B;
+  Mat*      K;
+  Vec*      w;
+  Vec*      q;
+  Mat      A;
+  //Vec       iden;
+  Vec       v1, v2, En, hEn;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  epsOut  = ctx->epsOut;
+  epsIn   = ctx->epsIn;
+  B       = ctx->B;
+  K       = ctx->K;
+  w       = ctx->w;
+  q       = &(ctx->pqr->q);
+  epsHat  = (epsOut - epsIn)/(epsOut + epsIn);
+
+  //get the dimension of sigma
+  ierr = VecGetLocalSize(sigma, &dim); CHKERRQ(ierr);
+  //initialize dense A matrix
+  ierr = MatCreateSeqDense(PETSC_COMM_SELF, dim, dim, NULL, &A);CHKERRQ(ierr);
+
+  ierr = VecDuplicate(*w, &v1);CHKERRQ(ierr);
+  ierr = VecDuplicate(*w, &v2);CHKERRQ(ierr);
+  ierr = VecDuplicate(*w, &En);CHKERRQ(ierr);
+  ierr = VecDuplicate(*w, &hEn);CHKERRQ(ierr);
+
+  //set up v1 to be 1.0/w to remove scaling later from stuff
+  ierr = VecSet(v1, 1.0);CHKERRQ(ierr);
+  ierr = VecPointwiseDivide(v1, v1, *w);CHKERRQ(ierr); // v1 = 1.0/w (pointwise)
+  
+  //A = I - 2*epsHat*K' - 2*epsHat h(En) = 2 epsHat
+  //next two lines give K' but scaled on the left by w
+  ierr = MatTranspose(*K, MAT_REUSE_MATRIX, &A); CHKERRQ(ierr);
+  ierr = MatDiagonalScale(A, NULL, *w);
+  //now we fix K' to remove scaling on the left by w
+  ierr = MatDiagonalScale(A, v1, NULL);CHKERRQ(ierr); //scale K' on left by 1/w
+
+  //calculate E_n now before changing A
+  //E_n = -Bq -
+  ierr = MatMult(*B, *q, En);CHKERRQ(ierr); //B is scaled on left by w
+  ierr = VecPointwiseMult(En, En, v1);CHKERRQ(ierr); //multiply by 1.0/w to fix Bq
+  ierr = MatMult(A, sigma, v2);CHKERRQ(ierr); //v2 = K'sigma
+  ierr = VecAXPY(En, 1.0, v2);CHKERRQ(ierr); //En = Bq+K'sigma
+  ierr = VecScale(En, -1.0);CHKERRQ(ierr); //En = -Bq - K'sigma
+
+  //calculate hEn
+  ierr = nonlinearH(En, ctx->hctx, &hEn);CHKERRQ(ierr);
+  
+  //A = 2*epsHat*(En + K' + hEn)
+  ierr = MatDiagonalSet(A, hEn, ADD_VALUES);CHKERRQ(ierr);
+  ierr = MatMult(*B, *q, En);CHKERRQ(ierr); //again, B is scaled on left by w
+  ierr = VecPointwiseMult(En, En, v1);CHKERRQ(ierr); //fix scaling by 1.0/w
+  ierr = MatDiagonalSet(A, En, ADD_VALUES);CHKERRQ(ierr);
+  ierr = MatScale(A, 2.0*epsHat);CHKERRQ(ierr); 
+
+  //assemble A
+  ierr = MatAssemblyBegin(A, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);ierr = MatAssemblyEnd(A, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+
+
+  ierr = MatMult(A, sigma, *out);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
 
 #undef __FUNCT__
 #define __FUNCT__ "FastPicard"
@@ -965,12 +1036,144 @@ PetscErrorCode FastPicard(PetscErrorCode (*rhs)(Vec, Vec*, void*), Vec guess, Ve
       ierr = VecSum(errvec, &err);CHKERRQ(ierr);
       err = PetscSqrtReal(err);
     }
-    
+    ierr = PetscPrintf(PETSC_COMM_WORLD, "THE ERROR IS: %5.5e\n", err);CHKERRQ(ierr);
   }
   
   ierr = VecDestroy(&errvec);CHKERRQ(ierr);
   ierr = VecDestroy(&prev);CHKERRQ(ierr);
 
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "NonlinearAnderson"
+PetscErrorCode NonlinearAnderson(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscErrorCode (*rhs)(Vec, Vec*, void*), Vec guess, Vec weights, void *ctx, Vec *sol)
+{
+  PetscErrorCode ierr;
+  PetscInt dim;
+  Mat A;
+  Vec b;
+  KSP ksp;
+  Vec xcurr, ycurr, xprev, yprev;
+  Vec rcurr, rprev, rdiff;
+  Vec ucurr, vcurr;
+  Vec next;
+  Vec temp;
+  PetscReal sigmatop, sigmabot, sigma;
+  PetscReal beta = 1;
+
+  PetscFunctionBegin;
+
+  //get dimension of problem
+  ierr = VecGetSize(guess, &dim);CHKERRQ(ierr);
+
+  //initialize dense A matrix
+  ierr = MatCreateSeqDense(PETSC_COMM_WORLD, dim, dim, NULL, &A);CHKERRQ(ierr);
+
+  //initialize other vectors and set to 0
+  ierr = VecDuplicate(guess, &b); CHKERRQ(ierr); ierr = VecZeroEntries(b);CHKERRQ(ierr);
+  ierr = VecDuplicate(guess, &xcurr);CHKERRQ(ierr); ierr = VecZeroEntries(xcurr);CHKERRQ(ierr);
+  ierr = VecDuplicate(guess, &xprev);CHKERRQ(ierr); ierr = VecZeroEntries(xprev);CHKERRQ(ierr);
+  ierr = VecDuplicate(guess, &ycurr);CHKERRQ(ierr); ierr = VecZeroEntries(ycurr);CHKERRQ(ierr);
+  ierr = VecDuplicate(guess, &yprev);CHKERRQ(ierr); ierr = VecZeroEntries(yprev);CHKERRQ(ierr);
+  ierr = VecDuplicate(guess, &rcurr);CHKERRQ(ierr); ierr = VecZeroEntries(rcurr);CHKERRQ(ierr);
+  ierr = VecDuplicate(guess, &rprev);CHKERRQ(ierr); ierr = VecZeroEntries(rprev);CHKERRQ(ierr);
+  ierr = VecDuplicate(guess, &rdiff);CHKERRQ(ierr); ierr = VecZeroEntries(rdiff);CHKERRQ(ierr);
+  ierr = VecDuplicate(guess, &temp);CHKERRQ(ierr); ierr = VecZeroEntries(temp);CHKERRQ(ierr);
+  ierr = VecDuplicate(guess, &ucurr);CHKERRQ(ierr); ierr = VecZeroEntries(ucurr);CHKERRQ(ierr);
+  ierr = VecDuplicate(guess, &vcurr);CHKERRQ(ierr); ierr = VecZeroEntries(vcurr);CHKERRQ(ierr);
+  ierr = VecDuplicate(guess, &next);CHKERRQ(ierr); ierr = VecZeroEntries(next);CHKERRQ(ierr);
+      
+
+  
+  //create linear solver context
+  ierr = KSPCreate(PETSC_COMM_WORLD, &ksp); CHKERRQ(ierr);
+  
+  //set up xprev, yprev, rprev
+  //calculate yprev = G(xprev)
+  ierr = VecCopy(guess, xcurr);CHKERRQ(ierr);
+  ierr = VecCopy(guess, xprev);CHKERRQ(ierr);
+  ierr = (*lhs)(xprev, &A, ctx);CHKERRQ(ierr);
+  ierr = (*rhs)(xprev, &b, ctx);CHKERRQ(ierr);
+  ierr = KSPSetOperators(ksp, A, A);CHKERRQ(ierr);
+  ierr = KSPSetTolerances(ksp, PETSC_DEFAULT, PETSC_DEFAULT, PETSC_DEFAULT, PETSC_DEFAULT);CHKERRQ(ierr);
+  ierr = KSPSolve(ksp, b, yprev);CHKERRQ(ierr);
+  //rprev = yprev - xprev
+  ierr = VecWAXPY(rprev, -1.0, xprev, yprev);CHKERRQ(ierr);
+
+  //ierr = VecView(errvec, PETSC_VIEWER_STDOUT_SELF);
+  PetscReal err = 1; 
+  for(int iter=1; iter<=15; ++iter)
+  {
+    printf("\n\nITERATION %d\n", iter);
+    if(iter != 1) {
+      ierr = VecCopy(xcurr, xprev);CHKERRQ(ierr);
+      ierr = VecCopy(ycurr, yprev);CHKERRQ(ierr);
+      ierr = VecCopy(rcurr, rprev);CHKERRQ(ierr);
+      ierr = VecCopy(next, xcurr);CHKERRQ(ierr);
+      ierr = VecCopy(next, xcurr);CHKERRQ(ierr);
+    }
+    //evaluate left and right hand sides of equation
+    ierr = (*lhs)(xcurr, &A, ctx); CHKERRQ(ierr);
+    ierr = (*rhs)(xcurr, &b, ctx); CHKERRQ(ierr);
+    //solve system for ycurr
+    ierr = KSPSetOperators(ksp, A, A); CHKERRQ(ierr);
+    ierr = KSPSetTolerances(ksp, PETSC_DEFAULT, PETSC_DEFAULT, PETSC_DEFAULT, PETSC_DEFAULT); CHKERRQ(ierr);
+    ierr = KSPSetFromOptions(ksp); CHKERRQ(ierr);
+    ierr = KSPSolve(ksp, b, ycurr); CHKERRQ(ierr);
+
+    //rcurr = ycurr - xcurr
+    ierr = VecWAXPY(rcurr, -1.0, xcurr, ycurr);CHKERRQ(ierr);
+
+    //error calculated from residual vector rcurr
+    ierr = VecPointwiseMult(temp, rcurr, rcurr);CHKERRQ(ierr);
+    ierr = VecPointwiseMult(temp, temp, weights);CHKERRQ(ierr);
+    ierr = VecSum(temp, &err);CHKERRQ(ierr);
+
+    //sigmal = (rcurr,rcurr-rprev)/(rcurr-rprev,rcurr-rprev)
+    ierr = VecWAXPY(rdiff, -1.0, rprev, rcurr);CHKERRQ(ierr);
+    ierr = VecPointwiseMult(temp, rcurr, rdiff);CHKERRQ(ierr);
+    ierr = VecPointwiseMult(temp, temp, weights);CHKERRQ(ierr);
+    ierr = VecSum(temp, &sigmatop); //sigmatop = (rcurr,rcurr-rprev)
+    ierr = VecPointwiseMult(temp, rdiff, rdiff);CHKERRQ(ierr);
+    ierr = VecPointwiseMult(temp, temp, weights);CHKERRQ(ierr);
+    ierr = VecSum(temp, &sigmabot); //sigmabot = (rcurr-rprev,rcurr-rprev)
+
+    sigma = sigmatop/sigmabot;
+
+    //ucurr = xcurr + sigma*(xprev-xcurr)
+    ierr = VecWAXPY(ucurr, -1.0, xcurr, xprev);CHKERRQ(ierr);
+    ierr = VecAYPX(ucurr, sigma, xcurr);CHKERRQ(ierr);
+    //vcurr = ycurr + sigma*(yprev-ycurr)
+    ierr = VecWAXPY(vcurr, -1.0, ycurr, yprev);CHKERRQ(ierr);
+    ierr = VecAYPX(vcurr, sigma, ycurr);CHKERRQ(ierr);
+
+    //next = ucurr + beta*(vcurr - ucurr)
+    ierr = VecWAXPY(next, -1.0, ucurr, vcurr);CHKERRQ(ierr);
+    ierr = VecAYPX(next, beta, ucurr);CHKERRQ(ierr);
+
+
+    
+    ierr = PetscPrintf(PETSC_COMM_WORLD, "THE ERROR IS: %5.5e\n", err);CHKERRQ(ierr);
+    //printf("sol:\n");
+    //ierr = VecView(*sol, PETSC_VIEWER_STDOUT_SELF); CHKERRQ(ierr);
+  }
+  //copy the final solution to *sol
+  ierr = VecCopy(next, *sol);CHKERRQ(ierr);
+
+  //destroy all vectors
+  ierr = VecDestroy(&b);CHKERRQ(ierr);
+  ierr = VecDestroy(&xcurr);CHKERRQ(ierr);
+  ierr = VecDestroy(&xprev);CHKERRQ(ierr);
+  ierr = VecDestroy(&ycurr);CHKERRQ(ierr);
+  ierr = VecDestroy(&yprev);CHKERRQ(ierr);
+  ierr = VecDestroy(&rcurr);CHKERRQ(ierr);
+  ierr = VecDestroy(&rprev);CHKERRQ(ierr);
+  ierr = VecDestroy(&rdiff);CHKERRQ(ierr);
+  ierr = VecDestroy(&temp);CHKERRQ(ierr);
+  ierr = VecDestroy(&ucurr);CHKERRQ(ierr);
+  ierr = VecDestroy(&vcurr);CHKERRQ(ierr);
+  ierr = VecDestroy(&next);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -1001,6 +1204,8 @@ PetscErrorCode NonlinearPicard(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscErr
   Vec b;
   Vec errvec;
   KSP ksp;
+  PetscInt maxIter = 15;
+  PetscReal flops[maxIter+1];
   PetscFunctionBegin;
 
   //get dimension of problem
@@ -1021,31 +1226,28 @@ PetscErrorCode NonlinearPicard(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscErr
   ierr = VecDuplicate(guess, &errvec);
   ierr = VecSet(errvec, -1.2);
 
-  //ierr = VecView(errvec, PETSC_VIEWER_STDOUT_SELF);
+
+  //get flops up until now setting up problem
+  ierr = PetscGetFlops(flops);CHKERRQ(ierr);
+
   PetscReal err = 1; 
-  for(int iter=1; iter<=15; ++iter)
+  for(int iter=1; iter<=maxIter; ++iter)
   {
     printf("\n\nITERATION NUMBER %d\n", iter);
-    printf("evaluating left side...\n");
+
+    //evaluate left and right hand sides of equation
     ierr = (*lhs)(*sol, &A, ctx); CHKERRQ(ierr);
-    printf("done evaluating left side.\n");
-    printf("evaluating right side...\n");
     ierr = (*rhs)(*sol, &b, ctx); CHKERRQ(ierr);
-    printf("done evaluating right side.\n");
-    //ierr = MatView(A, PETSC_VIEWER_STDOUT_SELF);
+    //copy current iteration value to prev
+    ierr = VecCopy(*sol, errvec); CHKERRQ(ierr);
+    //solve for next iteration
     ierr = KSPSetOperators(ksp, A, A); CHKERRQ(ierr);
     ierr = KSPSetTolerances(ksp, PETSC_DEFAULT, PETSC_DEFAULT, PETSC_DEFAULT, PETSC_DEFAULT); CHKERRQ(ierr);
     ierr = KSPSetFromOptions(ksp); CHKERRQ(ierr);
-    //copy current iteration value to prev
-    ierr = VecCopy(*sol, errvec); CHKERRQ(ierr);
-
     //solve system
-    ierr = printf("Starting KSPSolve...\n");
     ierr = KSPSolve(ksp, b, *sol); CHKERRQ(ierr);
-    ierr = printf("KSPSolve done.\n");
 
     //calculate current error, will be inaccurate on first iteration
-    ierr = printf("Starting error calc...\n");
     ierr = VecAXPY(errvec, -1.0, *sol); CHKERRQ(ierr);
     if(weights == NULL) {
       ierr = VecNorm(errvec, NORM_2, &err); CHKERRQ(ierr);
@@ -1057,11 +1259,20 @@ PetscErrorCode NonlinearPicard(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscErr
       ierr = VecSum(errvec, &err);CHKERRQ(ierr);
       err = PetscSqrtReal(err);
     }
-    ierr = printf("Done with error calc.\n");
     
+    ierr = PetscGetFlops(flops+iter);CHKERRQ(ierr);
     ierr = PetscPrintf(PETSC_COMM_WORLD, "THE ERROR IS: %5.5e\n", err);CHKERRQ(ierr);
-    //printf("sol:\n");
-    //ierr = VecView(*sol, PETSC_VIEWER_STDOUT_SELF); CHKERRQ(ierr);
+
+  }
+
+  //check if user wants to output flop-precision
+  PetscBool outputFlops = PETSC_FALSE;
+  ierr = PetscOptionsHasName(NULL, NULL, "-flops_out", &outputFlops);CHKERRQ(ierr);
+  if(outputFlops) {
+    FILE* flopsFile = NULL;
+    char line[200];
+
+
   }
   PetscFunctionReturn(0);
 }
@@ -1179,13 +1390,20 @@ PetscErrorCode makeBEMPcmQualReactionPotentialNonlinear(DM dm, BEMType bem, HCon
 
   //checks which LHS and RHS to use
   PetscBool fastPicard = PETSC_FALSE;
+  PetscBool anderson   = PETSC_FALSE;
   ierr = PetscOptionsGetBool(NULL, NULL, "-fast_picard", &fastPicard, NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsGetBool(NULL, NULL, "-anderson", &anderson, NULL);CHKERRQ(ierr);
   if(fastPicard) {
-    printf("Using FAST picard! Not Implemented yet...\n");
+    ierr = PetscPrintf(PETSC_COMM_WORLD, "Using Fast Picard iteration...\n");CHKERRQ(ierr);
+    ierr = FastPicard((PetscErrorCode (*)(Vec, Vec*, void*))&FastRHS, guess, w, &nctx, &t1);CHKERRQ(ierr);
+  }
+  else if(anderson){
+    ierr = PetscPrintf(PETSC_COMM_WORLD, "Using Anderson Acceleration...\n");CHKERRQ(ierr);
+    ierr = NonlinearAnderson((PetscErrorCode (*)(Vec, Mat*, void*))&FormASCNonlinearMatrix, (PetscErrorCode (*)(Vec, Vec*, void*))&ASCBq, guess, w, &nctx, &t1); CHKERRQ(ierr); //this is the OG version
   }
   else {
+    ierr = PetscPrintf(PETSC_COMM_WORLD, "Using Picard iteration...\n");CHKERRQ(ierr);
     ierr = NonlinearPicard((PetscErrorCode (*)(Vec, Mat*, void*))&FormASCNonlinearMatrix, (PetscErrorCode (*)(Vec, Vec*, void*))&ASCBq, guess, w, &nctx, &t1); CHKERRQ(ierr); //this is the OG version
-    printf("wheeeee\n");
   }
 
   /*
@@ -1478,7 +1696,8 @@ PetscErrorCode ProcessOptions(MPI_Comm comm, SolvationContext *ctx)
   ierr = PetscOptionsString("-pdb_filename", "The filename for the .pdb file", "testSrfOnSurfacePoints", ctx->pdbFile, ctx->pdbFile, sizeof(ctx->pdbFile), NULL);CHKERRQ(ierr);
   ierr = PetscOptionsString("-pqr_filename", "The filename for the .pqr file", "testSrfOnSurfacePoints", ctx->pqrFile, ctx->pqrFile, sizeof(ctx->pqrFile), NULL);CHKERRQ(ierr);
   ierr = PetscOptionsString("-crg_filename", "The filename for the .crg file", "testSrfOnSurfacePoints", ctx->crgFile, ctx->crgFile, sizeof(ctx->crgFile), NULL);CHKERRQ(ierr);
-  ierr = PetscOptionsString("-k_view", "The filename for matlab output of K matrix", "testSrfOnSurfacePoints", ctx->kFile, ctx->kFile, sizeof(ctx->kFile), NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsString("-k_view", "The filename for output of K matrix", "testSrfOnSurfacePoints", ctx->kFile, ctx->kFile, sizeof(ctx->kFile), NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsString("-flops_view", "The filename for output of flops-precision data", "testSrfOnSurfacePoints", ctx->flopsFile, ctx->flopsFile, sizeof(ctx->flopsFile), NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-is_sphere", "Use a spherical test case", "testSrfOnSurfacePoints", ctx->isSphere, &ctx->isSphere, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsInt("-num_charges", "The number of atomic charges in the solute", "testSrfOnSurfacePoints", ctx->numCharges, &ctx->numCharges, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsString("-srf_base", "The basename for the .srf file", "testSrfOnSurfacePoints", ctx->basename, ctx->basename, sizeof(ctx->basename), NULL);CHKERRQ(ierr);
