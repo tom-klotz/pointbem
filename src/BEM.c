@@ -1061,6 +1061,10 @@ PetscErrorCode NonlinearAnderson(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscE
   Vec temp;
   PetscReal sigmatop, sigmabot, sigma;
   PetscReal beta = 1;
+  PetscInt maxIter=15;
+  PetscReal flops[maxIter+1];
+  PetscReal errors[maxIter+1];
+
 
   PetscFunctionBegin;
 
@@ -1102,8 +1106,12 @@ PetscErrorCode NonlinearAnderson(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscE
   ierr = VecWAXPY(rprev, -1.0, xprev, yprev);CHKERRQ(ierr);
 
   //ierr = VecView(errvec, PETSC_VIEWER_STDOUT_SELF);
-  PetscReal err = 1; 
-  for(int iter=1; iter<=15; ++iter)
+  PetscReal err = 100;
+  errors[0] = 100;
+  //get flops up until this point for problem setup
+  ierr = PetscGetFlops(flops);CHKERRQ(ierr);
+  
+  for(int iter=1; iter<=maxIter; ++iter)
   {
     printf("\n\nITERATION %d\n", iter);
     if(iter != 1) {
@@ -1155,12 +1163,33 @@ PetscErrorCode NonlinearAnderson(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscE
 
     
     ierr = PetscPrintf(PETSC_COMM_WORLD, "THE ERROR IS: %5.5e\n", err);CHKERRQ(ierr);
+    errors[iter] = err;
+    ierr = PetscGetFlops(flops+iter);CHKERRQ(ierr);
     //printf("sol:\n");
     //ierr = VecView(*sol, PETSC_VIEWER_STDOUT_SELF); CHKERRQ(ierr);
   }
   //copy the final solution to *sol
   ierr = VecCopy(next, *sol);CHKERRQ(ierr);
 
+
+  //check if user wants to output flop-precision
+  PetscBool outputFlops = PETSC_FALSE;
+  PetscInt lineSize = 200;
+  char flopsFileName[PETSC_MAX_PATH_LEN];
+  ierr = PetscOptionsGetString(NULL, NULL, "-flops_out", flopsFileName, PETSC_MAX_PATH_LEN, &outputFlops);CHKERRQ(ierr);
+  if(outputFlops) {
+    FILE* flopsFile = NULL;
+    ierr = PetscFOpen(PETSC_COMM_SELF, flopsFileName, "w", &flopsFile);CHKERRQ(ierr);
+    if(!flopsFile) {
+      SETERRQ1(PETSC_COMM_SELF, PETSC_ERR_ARG_WRONG, "Problem opening FLOPs output file: %s", flopsFileName);
+    }
+    for(int iter=1; iter<=maxIter; ++iter) {	  
+      //[iteration] [flops] [error]
+      ierr = PetscFPrintf(PETSC_COMM_SELF, flopsFile, "%d %20.20f %5.5e\n", iter, flops[iter]-flops[0], errors[iter]);
+    }
+  }
+
+  
   //destroy all vectors
   ierr = VecDestroy(&b);CHKERRQ(ierr);
   ierr = VecDestroy(&xcurr);CHKERRQ(ierr);
@@ -1206,6 +1235,7 @@ PetscErrorCode NonlinearPicard(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscErr
   KSP ksp;
   PetscInt maxIter = 15;
   PetscReal flops[maxIter+1];
+  PetscReal errors[maxIter+1];
   PetscFunctionBegin;
 
   //get dimension of problem
@@ -1230,7 +1260,8 @@ PetscErrorCode NonlinearPicard(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscErr
   //get flops up until now setting up problem
   ierr = PetscGetFlops(flops);CHKERRQ(ierr);
 
-  PetscReal err = 1; 
+  PetscReal err= 100;
+  errors[0] = 100;
   for(int iter=1; iter<=maxIter; ++iter)
   {
     printf("\n\nITERATION NUMBER %d\n", iter);
@@ -1262,17 +1293,26 @@ PetscErrorCode NonlinearPicard(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscErr
     
     ierr = PetscGetFlops(flops+iter);CHKERRQ(ierr);
     ierr = PetscPrintf(PETSC_COMM_WORLD, "THE ERROR IS: %5.5e\n", err);CHKERRQ(ierr);
+    errors[iter] = err;
 
   }
 
+
   //check if user wants to output flop-precision
   PetscBool outputFlops = PETSC_FALSE;
-  ierr = PetscOptionsHasName(NULL, NULL, "-flops_out", &outputFlops);CHKERRQ(ierr);
+  PetscInt lineSize = 200;
+  char flopsFileName[PETSC_MAX_PATH_LEN];
+  ierr = PetscOptionsGetString(NULL, NULL, "-flops_out", flopsFileName, PETSC_MAX_PATH_LEN, &outputFlops);CHKERRQ(ierr);
   if(outputFlops) {
     FILE* flopsFile = NULL;
-    char line[200];
-
-
+    ierr = PetscFOpen(PETSC_COMM_SELF, flopsFileName, "w", &flopsFile);CHKERRQ(ierr);
+    if(!flopsFile) {
+      SETERRQ1(PETSC_COMM_SELF, PETSC_ERR_ARG_WRONG, "Problem opening FLOPs output file: %s", flopsFileName);
+    }
+    for(int iter=1; iter<=maxIter; ++iter) {	  
+      //[iteration] [flops] [error]
+      ierr = PetscFPrintf(PETSC_COMM_SELF, flopsFile, "%d %20.20f %5.5e\n", iter, flops[iter]-flops[0], errors[iter]);
+    }
   }
   PetscFunctionReturn(0);
 }
