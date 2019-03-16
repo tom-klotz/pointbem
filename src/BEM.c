@@ -1187,6 +1187,9 @@ PetscErrorCode NonlinearAnderson(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscE
     if(!flopsFile) {
       SETERRQ1(PETSC_COMM_SELF, PETSC_ERR_ARG_WRONG, "Problem opening FLOPs output file: %s", flopsFileName);
     }
+    //for "0th" iteration, output flop count at start of picard iteration
+    ierr = PetscFPrintf(PETSC_COMM_SELF, flopsFile, "%d %20.20f N/A\n", 0, flops[0]);CHKERRQ(ierr);
+    //for each iteration, output the flops and residual
     for(int iter=1; iter<=maxIter; ++iter) {	  
       //[iteration] [flops] [error]
       ierr = PetscFPrintf(PETSC_COMM_SELF, flopsFile, "%d %20.20f %5.5e\n", iter, flops[iter]-flops[0], errors[iter]);

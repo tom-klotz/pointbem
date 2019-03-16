@@ -16,6 +16,9 @@ ex7: ex7.o chkopts
 	-${CLINKER} -o ex7 ex7.o ${SLEPC_EPS_LIB}
 	${RM} ex7.o
 
+1hco: 1hco_point_picard 1hco_point_anderson 1hco_panel_picard 1hco_panel_anderson
+
+
 spheremat_point:
 	./calcSolvationEnergy -srf_base ../geometry/sphere_R6_vdens0 -num_charges 10 -nmax 25 -srf_num 0125 -density 0.125 -ksp_rtol 1.0e-10 -snes_linesearch_type basic -snes_type ksponly -potential_petscspace_degree 1 -k_view output/K_sphere_point_0125.mat
 	./calcSolvationEnergy -srf_base ../geometry/sphere_R6_vdens0 -num_charges 10 -nmax 25 -srf_num 025 -density 0.25 -ksp_rtol 1.0e-10 -snes_linesearch_type basic -snes_type ksponly -potential_petscspace_degree 1 -k_view output/K_sphere_point_025.mat
@@ -85,26 +88,45 @@ argpqr_point:
 
 1hco_point_nonlinear:
 	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/1hco.pqr -srf_base ../geometry/1hco_scaledcharmm_ -srf_num 1 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/K_1hco_point_1.mat -dm_view hdf5:sol1hco1.h5 -charge_view hdf5:sol1hco1.h5::append -force_nonlinear 1 -alpha 0.5 -beta -60 -gamma -0.5
-	./calcSolvationEner
 
-1hco_panel:
-	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/1hco.pqr -srf_base ../geometry/1hco_scaledcharmm_ -srf_num 1 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/K_1hco_point_1.mat -dm_view hdf5:sol1hco1.h5 -charge_view hdf5:sol1hco1.h5::append -force_nonlinear 1 -alpha 0.5 -beta -60 -gamma -0.5 -use_panels 1
-	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/1hco.pqr -srf_base ../geometry/1hco_scaledcharmm_ -srf_num 2 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/K_1hco_point_2.mat -dm_view hdf5:sol1hco2.h5 -charge_view hdf5:sol1hco2.h5::append -force_nonlinear 1 -alpha 0.5 -beta -60 -gamma -0.5 -use_panels 1
-	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/1hco.pqr -srf_base ../geometry/1hco_scaledcharmm_ -srf_num 3 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/K_1hco_point_3.mat -dm_view hdf5:sol1hco3.h5 -charge_view hdf5:sol1hco3.h5::append -force_nonlinear 1 -alpha 0.5 -beta -60 -gamma -0.5 -use_panels 1
 
-1hco_point:
-	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/1hco.pqr -srf_base ../geometry/1hco_scaledcharmm_ -srf_num 1 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/K_1hco_point_1.mat -dm_view hdf5:sol1hco1.h5 -charge_view hdf5:sol1hco1.h5::append -force_nonlinear 1 -alpha 0.5 -beta -60 -gamma -0.5 
-	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/1hco.pqr -srf_base ../geometry/1hco_scaledcharmm_ -srf_num 2 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/K_1hco_point_2.mat -dm_view hdf5:sol1hco2.h5 -charge_view hdf5:sol1hco2.h5::append -force_nonlinear 1 -alpha 0.5 -beta -60 -gamma -0.5
-	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/1hco.pqr -srf_base ../geometry/1hco_scaledcharmm_ -srf_num 3 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/K_1hco_point_3.mat -dm_view hdf5:sol1hco3.h5 -charge_view hdf5:sol1hco3.h5::append -force_nonlinear 1 -alpha 0.5 -beta -60 -gamma -0.5
+1hco_panel_picard:
+	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/1hco.pqr -srf_base ../geometry/1hco_scaledcharmm_ -srf_num 1 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/K_1hco_panel_1.mat -dm_view hdf5:sol1hco1.h5 -charge_view hdf5:sol1hco1.h5::append -force_nonlinear 1 -alpha 0.5 -beta -60 -gamma -0.5 -use_panels 1 -flops_out output/1hco_panel_1_picard_flops.txt -info_out output/1hco_panel_1_picard_data.txt
+	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/1hco.pqr -srf_base ../geometry/1hco_scaledcharmm_ -srf_num 2 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/K_1hco_panel_2.mat -dm_view hdf5:sol1hco2.h5 -charge_view hdf5:sol1hco2.h5::append -force_nonlinear 1 -alpha 0.5 -beta -60 -gamma -0.5 -use_panels 1 -flops_out output/1hco_panel_2_picard_flops.txt -info_out output/1hco_panel_2_picard_data.txt
+	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/1hco.pqr -srf_base ../geometry/1hco_scaledcharmm_ -srf_num 3 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/K_1hco_panel_3.mat -dm_view hdf5:sol1hco3.h5 -charge_view hdf5:sol1hco3.h5::append -force_nonlinear 1 -alpha 0.5 -beta -60 -gamma -0.5 -use_panels 1 -flops_out output/1hco_panel_2_picard_flops.txt -info_out output/1hco_panel_1_picard_data.txt
+
+1hco_panel_anderson:
+	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/1hco.pqr -srf_base ../geometry/1hco_scaledcharmm_ -srf_num 1 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/K_1hco_panel_1.mat -dm_view hdf5:sol1hco1.h5 -charge_view hdf5:sol1hco1.h5::append -force_nonlinear 1 -alpha 0.5 -beta -60 -gamma -0.5 -use_panels 1 -flops_out output/1hco_panel_1_anderson_flops.txt -info_out output/1hco_panel_1_anderson_data.txt -anderson 1
+	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/1hco.pqr -srf_base ../geometry/1hco_scaledcharmm_ -srf_num 2 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/K_1hco_panel_2.mat -dm_view hdf5:sol1hco2.h5 -charge_view hdf5:sol1hco2.h5::append -force_nonlinear 1 -alpha 0.5 -beta -60 -gamma -0.5 -use_panels 1 -flops_out output/1hco_panel_2_anderson_flops.txt -info_out output/1hco_panel_2_anderson_data.txt -anderson 1
+	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/1hco.pqr -srf_base ../geometry/1hco_scaledcharmm_ -srf_num 3 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/K_1hco_panel_3.mat -dm_view hdf5:sol1hco3.h5 -charge_view hdf5:sol1hco3.h5::append -force_nonlinear 1 -alpha 0.5 -beta -60 -gamma -0.5 -use_panels 1 -flops_out output/1hco_panel_2_anderson_flops.txt -info_out output/1hco_panel_1_anderson_data.txt -anderson 1
+
+
+1hco_point_picard:
+	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/1hco.pqr -srf_base ../geometry/1hco_scaledcharmm_ -srf_num 1 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/K_1hco_point_1.mat -dm_view hdf5:sol1hco1.h5 -charge_view hdf5:sol1hco1.h5::append -force_nonlinear 1 -alpha 0.5 -beta -60 -gamma -0.5 -flops_out output/1hco_point_1_picard_flops.txt -info_out output/1hco_point_1_picard_data.txt
+	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/1hco.pqr -srf_base ../geometry/1hco_scaledcharmm_ -srf_num 2 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/K_1hco_point_2.mat -dm_view hdf5:sol1hco2.h5 -charge_view hdf5:sol1hco2.h5::append -force_nonlinear 1 -alpha 0.5 -beta -60 -gamma -0.5 -flops_out output/1hco_point_2_picard_flops.txt -info_out output/1hco_point_2_picard_data.txt
+	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/1hco.pqr -srf_base ../geometry/1hco_scaledcharmm_ -srf_num 3 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/K_1hco_point_3.mat -dm_view hdf5:sol1hco3.h5 -charge_view hdf5:sol1hco3.h5::append -force_nonlinear 1 -alpha 0.5 -beta -60 -gamma -0.5 -flops_out output/1hco_point_3_picard_flops.txt -info_out output/1hco_point_3_picard_data.txt
+
+1hco_point_anderson:
+	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/1hco.pqr -srf_base ../geometry/1hco_scaledcharmm_ -srf_num 1 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/K_1hco_point_1.mat -dm_view hdf5:sol1hco1.h5 -charge_view hdf5:sol1hco1.h5::append -force_nonlinear 1 -alpha 0.5 -beta -60 -gamma -0.5 -flops_out output/1hco_point_1_anderson_flops.txt -info_out output/1hco_point_1_anderson_data.txt -anderson 1
+	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/1hco.pqr -srf_base ../geometry/1hco_scaledcharmm_ -srf_num 2 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/K_1hco_point_2.mat -dm_view hdf5:sol1hco2.h5 -charge_view hdf5:sol1hco2.h5::append -force_nonlinear 1 -alpha 0.5 -beta -60 -gamma -0.5 -flops_out output/1hco_point_2_anderson_flops.txt -info_out output/1hco_point_2_anderson_data.txt -anderson 1
+	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/1hco.pqr -srf_base ../geometry/1hco_scaledcharmm_ -srf_num 3 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/K_1hco_point_3.mat -dm_view hdf5:sol1hco3.h5 -charge_view hdf5:sol1hco3.h5::append -force_nonlinear 1 -alpha 0.5 -beta -60 -gamma -0.5 -flops_out output/1hco_point_3_anderson_flops.txt -info_out output/1hco_point_3_anderson_data.txt -anderson 1
 
 arg_point_solution:
 	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/arg.pdb -crg_filename ../geometry/jr1.crg -srf_base ../geometry/arg_scaledcharmm_ -srf_num 1 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/K_arg_point_1.mat -dm_view hdf5:sol.h5 -charge_view hdf5:sol.h5::append
 
-argmat_point_anderson:
-	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/arg.pdb -crg_filename ../geometry/jr1.crg -srf_base ../geometry/arg_scaledcharmm_ -srf_num 1 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/K_arg_point_1.mat -force_nonlinear 1 -alpha .5 -beta -60 -gamma -0.5 -flops_out output/arg_point_1_anderson_flops.txt -anderson 1 -info_out output/arg_point_1_picard_data.txt
-	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/arg.pdb -crg_filename ../geometry/jr1.crg -srf_base ../geometry/arg_scaledcharmm_ -srf_num 2 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/K_arg_point_2.mat -force_nonlinear 1 -alpha .5 -beta -60 -gamma -0.5 -flops_out output/arg_point_2_anderson_flops.txt -anderson 1 -info_out output/arg_point_1_picard_data.txt
-	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/arg.pdb -crg_filename ../geometry/jr1.crg -srf_base ../geometry/arg_scaledcharmm_ -srf_num 3 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/K_arg_point_3.mat -force_nonlinear 1 -alpha .5 -beta -60 -gamma -0.5 -flops_out output/arg_point_3_anderson_flops.txt -anderson 1 -info_out output/arg_point_1_picard_data.txt
-	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/arg.pdb -crg_filename ../geometry/jr1.crg -srf_base ../geometry/arg_scaledcharmm_ -srf_num 4 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/K_arg_point_4.mat -force_nonlinear 1 -alpha .5 -beta -60 -gamma -0.5 -flops_out output/arg_point_4_anderson_flops.txt -anderson 1 -info_out output/arg_point_1_picard_data.txt
+arg_point_anderson:
+	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/arg.pdb -crg_filename ../geometry/jr1.crg -srf_base ../geometry/arg_scaledcharmm_ -srf_num 1 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/K_arg_point_1.mat -dm_view hdf5:output/arg_1_point_anderson.h5 -charge_view hdf5:output/arg_1_point_anderson.h5::append -force_nonlinear 1 -alpha .5 -beta -60 -gamma -0.5 -flops_out output/arg_point_1_anderson_flops.txt -anderson 1 -info_out output/arg_point_1_anderson_data.txt
+	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/arg.pdb -crg_filename ../geometry/jr1.crg -srf_base ../geometry/arg_scaledcharmm_ -srf_num 2 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/K_arg_point_2.mat -force_nonlinear 1 -alpha .5 -beta -60 -gamma -0.5 -flops_out output/arg_point_2_anderson_flops.txt -anderson 1 -info_out output/arg_point_2_anderson_data.txt -dm_view hdf5:output/arg_2_point_anderson.h5 -charge_view hdf5:output/arg_2_point_anderson.h5::append
+	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/arg.pdb -crg_filename ../geometry/jr1.crg -srf_base ../geometry/arg_scaledcharmm_ -srf_num 3 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/K_arg_point_3.mat -force_nonlinear 1 -alpha .5 -beta -60 -gamma -0.5 -flops_out output/arg_point_3_anderson_flops.txt -anderson 1 -info_out output/arg_point_3_anderson_data.txt
+	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/arg.pdb -crg_filename ../geometry/jr1.crg -srf_base ../geometry/arg_scaledcharmm_ -srf_num 4 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/K_arg_point_4.mat -force_nonlinear 1 -alpha .5 -beta -60 -gamma -0.5 -flops_out output/arg_point_4_anderson_flops.txt -anderson 1 -info_out output/arg_point_4_anderson_data.txt
+
+arg_panel_anderson:
+	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/arg.pdb -crg_filename ../geometry/jr1.crg -srf_base ../geometry/arg_scaledcharmm_ -srf_num 1 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/K_arg_panel_1.mat -dm_view hdf5:output/arg_1_panel_anderson.h5 -charge_view hdf5:output/arg_1_panel_anderson.h5::append -force_nonlinear 1 -alpha .5 -beta -60 -gamma -0.5 -flops_out output/arg_panel_1_anderson_flops.txt -anderson 1 -info_out output/arg_panel_1_anderson_data.txt -use_panels 1
+	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/arg.pdb -crg_filename ../geometry/jr1.crg -srf_base ../geometry/arg_scaledcharmm_ -srf_num 2 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/K_arg_panel_2.mat -force_nonlinear 1 -alpha .5 -beta -60 -gamma -0.5 -flops_out output/arg_panel_2_anderson_flops.txt -anderson 1 -info_out output/arg_panel_2_anderson_data.txt -dm_view hdf5:output/arg_2_panel_anderson.h5 -charge_view hdf5:output/arg_2_panel_anderson.h5::append -use_panels 1
+	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/arg.pdb -crg_filename ../geometry/jr1.crg -srf_base ../geometry/arg_scaledcharmm_ -srf_num 3 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/K_arg_panel_3.mat -force_nonlinear 1 -alpha .5 -beta -60 -gamma -0.5 -flops_out output/arg_panel_3_anderson_flops.txt -anderson 1 -info_out output/arg_panel_3_anderson_data.txt -use_panels 1
+	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/arg.pdb -crg_filename ../geometry/jr1.crg -srf_base ../geometry/arg_scaledcharmm_ -srf_num 4 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/K_arg_panel_4.mat -force_nonlinear 1 -alpha .5 -beta -60 -gamma -0.5 -flops_out output/arg_panel_4_anderson_flops.txt -anderson 1 -info_out output/arg_panel_4_anderson_data.txt -use_panels 1
+
+
 
 
 argmat_point:
@@ -252,6 +274,8 @@ matarg: argmat_point argmat_panel argmat_noprobe_point argmat_noprobe_panel
 matasp: aspmat_point aspmat_panel aspmat_noprobe_point aspmat_noprobe_panel
 
 mats: matsph matarg matasp
+
+
 
 regression:
 	PYTHONPATH=${PYTHONPATH}:.. ${PETSC_DIR}/config/builder2.py check [testSrfOnSurfacePoints.c,surface.c,sphere.c,molecule.c] --regParams=testParams ${ARGS}

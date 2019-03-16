@@ -117,6 +117,8 @@ int main(int argc, char **argv)
     else {
       ierr = PetscFPrintf(PETSC_COMM_SELF, infoFile, "N=%D\nTYPE = POINTS\n", vEnd-vStart);CHKERRQ(ierr);
     }
+    //output nonlinear parameters
+    ierr = PetscFPrintf(PETSC_COMM_SELF, infoFile, "alpha, beta, gamma: %5.5f %5.5f %5.5f\n", params.alpha, params.beta, params.gamma);CHKERRQ(ierr);
     //output solvation energy
     ierr = PetscFPrintf(PETSC_COMM_SELF, infoFile, "solv. energy: %15.15f\n", energy);CHKERRQ(ierr);
     //output flops for each stage
