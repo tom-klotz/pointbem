@@ -67,12 +67,13 @@ PetscErrorCode nonlinearH(Vec E, HContext *ctx, Vec *hEn);
 PetscErrorCode ASCBq(Vec sigma, Vec *Bq, NonlinearContext *ctx);
 PetscErrorCode FormASCNonlinearMatrix(Vec sigma, Mat *A, NonlinearContext *ctx);
 PetscErrorCode FastRHS(Vec sigma, Vec *out, NonlinearContext *ctx);
-PetscErrorCode NonlinearPicard(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscErrorCode (*rhs)(Vec, Vec*, void*), Vec guess, Vec weights, void *ctx, Vec *sol);
+PetscErrorCode NonlinearPicard(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscErrorCode (*rhs)(Vec, Vec*, void*), Vec guess, Vec weights, void *ctx, Vec *sol, PetscReal *estError);
+PetscErrorCode NonlinearAnderson(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscErrorCode (*rhs)(Vec, Vec*, void*), Vec guess, Vec weights, void *ctx, Vec *sol, PetscReal *estError);
 PetscErrorCode FastPicard(PetscErrorCode (*rhs)(Vec, Vec*, void*), Vec guess, Vec weights, void *ctx, Vec *sol);
-PetscErrorCode makeBEMPcmQualReactionPotentialNonlinear(DM dm, BEMType bem, HContext params, SolvationContext *ctx, PetscReal epsIn, PetscReal epsOut, PQRData *pqr, Vec coordinates, Vec w, Vec n, Vec react);
+PetscErrorCode makeBEMPcmQualReactionPotentialNonlinear(DM dm, BEMType bem, HContext params, SolvationContext *ctx, PetscReal epsIn, PetscReal epsOut, PQRData *pqr, Vec coordinates, Vec w, Vec n, Vec react, PetscReal *estError);
 PetscErrorCode makeBEMPcmQualReactionPotential(DM dm, BEMType bem, SolvationContext *ctx, PetscReal epsIn, PetscReal epsOut, PQRData *pqr, Vec coordinates, Vec w, Vec n, Vec react);
 PetscErrorCode CalculateAnalyticSolvationEnergy(PetscReal epsIn, PetscReal epsOut, PQRData *pqr, PetscReal R, PetscInt Nmax, Vec react, PetscReal *E);
-PetscErrorCode CalculateBEMSolvationEnergy(DM dm, SolvationContext *ctx, const char prefix[], BEMType bem, HContext params, PetscReal epsIn, PetscReal epsOut, PQRData *pqr, Vec w, Vec n, Vec react, PetscReal *E);
+PetscErrorCode CalculateBEMSolvationEnergy(DM dm, SolvationContext *ctx, const char prefix[], BEMType bem, HContext params, PetscReal epsIn, PetscReal epsOut, PQRData *pqr, Vec w, Vec n, Vec react, PetscReal *E, PetscReal *estError);
 PetscErrorCode ProcessOptions(MPI_Comm comm, SolvationContext *ctx);
 PetscErrorCode workprectests(int argc, char **argv);
 #endif

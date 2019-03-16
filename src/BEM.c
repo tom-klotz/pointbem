@@ -251,9 +251,9 @@ PetscErrorCode IntegratePanel(PetscInt numCorners, const PetscReal npanel[], con
     fsy = fsy - zn*fdy;
     fes = normal[0]*fsx + normal[1]*fsy - normal[2]*fd;
     fed = normal[0]*fdx + normal[1]*fdy + normal[2]*fdz;
-    ierr = PetscLogFlops((2 + 61) * numCorners + 14);CHKERRQ(ierr);
+    ierr = PetscLogFlops((2.0 + 61.0) * ((double)numCorners) + 14.0);CHKERRQ(ierr);
   }
-  ierr = PetscLogFlops((24 + 29) * numCorners + 2);CHKERRQ(ierr);
+  ierr = PetscLogFlops((24.0 + 29.0) * ((double)numCorners) + 2.0);CHKERRQ(ierr);
 
   /* No area normalization */
   *fss = fs;
@@ -342,9 +342,9 @@ PetscErrorCode makeSurfaceToSurfacePanelOperators_Laplace(DM dm, Vec w, Vec n, M
       /* if (Kp) {ierr = MatSetValue(*singleLayer, j, i, fess/4/PETSC_PI, INSERT_VALUES);CHKERRQ(ierr);} */
     }
   }
-  ierr = PetscLogFlops(PetscAbsInt(37 * Np*Np + 91 * Np + 2));CHKERRQ(ierr);
-  if (V) {ierr = PetscLogFlops(Np*Np);CHKERRQ(ierr);}
-  if (K) {ierr = PetscLogFlops(Np*Np);CHKERRQ(ierr);}
+  ierr = PetscLogFlops(37.0 * ((double)Np)*Np + 91.0 * Np + 2.0);CHKERRQ(ierr);
+  if (V) {ierr = PetscLogFlops(((double)Np)*Np);CHKERRQ(ierr);}
+  if (K) {ierr = PetscLogFlops(((double)Np)*Np);CHKERRQ(ierr);}
   if (V) {ierr = MatAssemblyBegin(*V, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);ierr = MatAssemblyEnd(*V, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);}
   if (K) {ierr = MatAssemblyBegin(*K, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);ierr = MatAssemblyEnd(*K, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);}
   ierr = PetscLogEventEnd(CalcStoS_Event, 0, 0, 0, 0);CHKERRQ(ierr);
@@ -439,9 +439,9 @@ PetscErrorCode makeSurfaceToChargePanelOperators(DM dm, Vec w, Vec n, PQRData *p
       if (doubleLayer) {ierr = MatSetValue(*doubleLayer, j, i, fds*fac, INSERT_VALUES);CHKERRQ(ierr);}
     }
   }
-  ierr = PetscLogFlops(27 * Np*Nq + 91 * Np + 2);CHKERRQ(ierr);
-  if (singleLayer) {ierr = PetscLogFlops(Np*Nq);CHKERRQ(ierr);}
-  if (doubleLayer) {ierr = PetscLogFlops(Np*Nq);CHKERRQ(ierr);}
+  ierr = PetscLogFlops(27.0 * ((double)Np)*Nq + 91.0 * Np + 2.0);CHKERRQ(ierr);
+  if (singleLayer) {ierr = PetscLogFlops(((double)Np)*Nq);CHKERRQ(ierr);}
+  if (doubleLayer) {ierr = PetscLogFlops(((double)Np)*Nq);CHKERRQ(ierr);}
   ierr = VecRestoreArrayRead(pqr->xyz, &xyz);CHKERRQ(ierr);
   if (potential)   {ierr = MatAssemblyBegin(*potential,   MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);ierr = MatAssemblyEnd(*potential,   MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);}
   if (field)       {ierr = MatAssemblyBegin(*field,       MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);ierr = MatAssemblyEnd(*field,       MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);}
@@ -510,9 +510,9 @@ PetscErrorCode makeSurfaceToChargePointOperators(Vec coordinates, Vec w, Vec n, 
       if (doubleLayer) {ierr = MatSetValue(*doubleLayer, j, i, dGdn*weights[i], INSERT_VALUES);CHKERRQ(ierr);}
     }
   }
-  ierr = PetscLogFlops(16 * Np*Nq + 2);CHKERRQ(ierr);
-  if (singleLayer) {ierr = PetscLogFlops(Np*Nq);CHKERRQ(ierr);}
-  if (doubleLayer) {ierr = PetscLogFlops(Np*Nq);CHKERRQ(ierr);}
+  ierr = PetscLogFlops(16.0 * ((double)Np)*Nq + 2);CHKERRQ(ierr);
+  if (singleLayer) {ierr = PetscLogFlops(((double)Np)*Nq);CHKERRQ(ierr);}
+  if (doubleLayer) {ierr = PetscLogFlops(((double)Np)*Nq);CHKERRQ(ierr);}
   ierr = VecRestoreArrayRead(coordinates, &coords);CHKERRQ(ierr);
   ierr = VecRestoreArrayRead(pqr->xyz, &xyz);CHKERRQ(ierr);
   ierr = VecRestoreArrayRead(w, &weights);CHKERRQ(ierr);
@@ -580,25 +580,25 @@ PetscErrorCode makeSurfaceToSurfacePointOperators_Laplace(Vec coordinates, Vec w
       }
     }
   }
-  ierr = PetscLogFlops(PetscAbsInt(16 * Np*Np + 2));CHKERRQ(ierr);
-  if (V) {ierr = PetscLogFlops(PetscAbsInt(2 * Np*Np));CHKERRQ(ierr);}
+  ierr = PetscLogFlops(16.0 * ((double)Np)*Np + 2.0);CHKERRQ(ierr);
+  if (V) {ierr = PetscLogFlops((2. * Np*Np));CHKERRQ(ierr);}
   if (K) {
-    if(Np >= 20000) { //this is really hackey to prevent logging negative flops. If Np is too big, flops wont get recorded
-      ierr = PetscPrintf(PETSC_COMM_WORLD, "WARNING: FLOP count overload while calculating K. Recording as 1...\n");CHKERRQ(ierr);
-      ierr = PetscLogFlops(1);CHKERRQ(ierr);
-    }
-    else {
-      ierr = PetscLogFlops(PetscAbsInt(5 * Np*Np));CHKERRQ(ierr);
-    }
+    //if(Np >= 20000) { //this is really hackey to prevent logging negative flops. If Np is too big, flops wont get recorded
+    //ierr = PetscPrintf(PETSC_COMM_WORLD, "WARNING: FLOP count overload while calculating K. Recording as 1...\n");CHKERRQ(ierr);
+    //ierr = PetscLogFlops(1);CHKERRQ(ierr);
+    //}
+    //else {
+    ierr = PetscLogFlops(5.0 * ((double)Np)*Np);CHKERRQ(ierr);
+    //}
   }
   if (Elec) {
-    if(Np >= 20000) {
-      ierr = PetscPrintf(PETSC_COMM_WORLD, "WARNING: FLOP count overload while calculating K'. Recording as 1...\n");CHKERRQ(ierr);
-      ierr = PetscLogFlops(1);CHKERRQ(ierr);
-    }
-    else {
-      ierr = PetscLogFlops(PetscAbsInt(5*Np*Np));CHKERRQ(ierr);
-    }
+    //if(Np >= 20000) {
+    //ierr = PetscPrintf(PETSC_COMM_WORLD, "WARNING: FLOP count overload while calculating K'. Recording as 1...\n");CHKERRQ(ierr);
+    //ierr = PetscLogFlops(1);CHKERRQ(ierr);
+    //}
+    //else {
+    ierr = PetscLogFlops(5.0*((double)Np)*Np);CHKERRQ(ierr);
+    //}
   }
   ierr = VecRestoreArrayRead(coordinates, &coords);CHKERRQ(ierr);
   ierr = VecRestoreArrayRead(w, &weights);CHKERRQ(ierr);
@@ -1036,9 +1036,9 @@ PetscErrorCode FastPicard(PetscErrorCode (*rhs)(Vec, Vec*, void*), Vec guess, Ve
       ierr = VecSum(errvec, &err);CHKERRQ(ierr);
       err = PetscSqrtReal(err);
     }
-    ierr = PetscPrintf(PETSC_COMM_WORLD, "THE ERROR IS: %5.5e\n", err);CHKERRQ(ierr);
+
   }
-  
+
   ierr = VecDestroy(&errvec);CHKERRQ(ierr);
   ierr = VecDestroy(&prev);CHKERRQ(ierr);
 
@@ -1047,7 +1047,7 @@ PetscErrorCode FastPicard(PetscErrorCode (*rhs)(Vec, Vec*, void*), Vec guess, Ve
 
 #undef __FUNCT__
 #define __FUNCT__ "NonlinearAnderson"
-PetscErrorCode NonlinearAnderson(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscErrorCode (*rhs)(Vec, Vec*, void*), Vec guess, Vec weights, void *ctx, Vec *sol)
+PetscErrorCode NonlinearAnderson(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscErrorCode (*rhs)(Vec, Vec*, void*), Vec guess, Vec weights, void *ctx, Vec *sol, PetscReal *estError)
 {
   PetscErrorCode ierr;
   PetscInt dim;
@@ -1171,6 +1171,10 @@ PetscErrorCode NonlinearAnderson(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscE
   //copy the final solution to *sol
   ierr = VecCopy(next, *sol);CHKERRQ(ierr);
 
+  //if user provides estError, then set it to the final residual
+  if(estError != NULL) {
+    *estError = err;
+  }
 
   //check if user wants to output flop-precision
   PetscBool outputFlops = PETSC_FALSE;
@@ -1187,6 +1191,7 @@ PetscErrorCode NonlinearAnderson(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscE
       //[iteration] [flops] [error]
       ierr = PetscFPrintf(PETSC_COMM_SELF, flopsFile, "%d %20.20f %5.5e\n", iter, flops[iter]-flops[0], errors[iter]);
     }
+    ierr = PetscFClose(PETSC_COMM_SELF, flopsFile);CHKERRQ(ierr);
   }
 
   
@@ -1225,7 +1230,7 @@ PetscErrorCode NonlinearAnderson(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscE
 
 .seealso: makeBEMPcmQualReactionPotential
 @*/
-PetscErrorCode NonlinearPicard(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscErrorCode (*rhs)(Vec, Vec*, void*), Vec guess, Vec weights, void *ctx, Vec *sol)
+PetscErrorCode NonlinearPicard(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscErrorCode (*rhs)(Vec, Vec*, void*), Vec guess, Vec weights, void *ctx, Vec *sol, PetscReal *estError)
 {
   PetscErrorCode ierr;
   PetscInt dim;
@@ -1297,7 +1302,11 @@ PetscErrorCode NonlinearPicard(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscErr
 
   }
 
-
+  //if user provides estError, then set it to the final residual
+  if(estError != NULL) {
+    *estError = err;
+  }
+  
   //check if user wants to output flop-precision
   PetscBool outputFlops = PETSC_FALSE;
   PetscInt lineSize = 200;
@@ -1309,10 +1318,14 @@ PetscErrorCode NonlinearPicard(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscErr
     if(!flopsFile) {
       SETERRQ1(PETSC_COMM_SELF, PETSC_ERR_ARG_WRONG, "Problem opening FLOPs output file: %s", flopsFileName);
     }
+    //for "0th" iteration, output flop count at start of picard iteration
+    ierr = PetscFPrintf(PETSC_COMM_SELF, flopsFile, "%d %20.20f N/A\n", 0, flops[0]);CHKERRQ(ierr);
+    //for each iteration, output the flops and residual
     for(int iter=1; iter<=maxIter; ++iter) {	  
       //[iteration] [flops] [error]
       ierr = PetscFPrintf(PETSC_COMM_SELF, flopsFile, "%d %20.20f %5.5e\n", iter, flops[iter]-flops[0], errors[iter]);
     }
+    ierr = PetscFClose(PETSC_COMM_SELF, flopsFile);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
 }
@@ -1337,7 +1350,7 @@ PetscErrorCode NonlinearPicard(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscErr
 
 .seealso: doAnalytical()
 @*/
-PetscErrorCode makeBEMPcmQualReactionPotentialNonlinear(DM dm, BEMType bem, HContext params, SolvationContext *ctx, PetscReal epsIn, PetscReal epsOut, PQRData *pqr, Vec coordinates, Vec w, Vec n, Vec react)
+PetscErrorCode makeBEMPcmQualReactionPotentialNonlinear(DM dm, BEMType bem, HContext params, SolvationContext *ctx, PetscReal epsIn, PetscReal epsOut, PQRData *pqr, Vec coordinates, Vec w, Vec n, Vec react, PetscReal *estError)
 {
   //const PetscReal epsHat = (epsIn + epsOut)/(epsIn - epsOut);
   //SNES            snes;
@@ -1349,7 +1362,7 @@ PetscErrorCode makeBEMPcmQualReactionPotentialNonlinear(DM dm, BEMType bem, HCon
   PetscFunctionBegin;
   switch (bem) {
   case BEM_POINT_MF:
-    ierr = makeSurfaceToSurfacePointOperators_Laplace(coordinates, w, n, NULL, &K, &Elec);CHKERRQ(ierr);
+    ierr = makeSurfaceToSurfacePointOperators_Laplace(coordinates, w, n, NULL, &K, NULL);CHKERRQ(ierr);
     ierr = makeSurfaceToChargePointOperators(coordinates, w, n, pqr, NULL, &B, &C, NULL);CHKERRQ(ierr);
     ierr = PetscLogEventBegin(CalcR_Event, 0, 0, 0, 0);CHKERRQ(ierr);
     /* B = chargesurfop.dphidnCoul */
@@ -1439,11 +1452,11 @@ PetscErrorCode makeBEMPcmQualReactionPotentialNonlinear(DM dm, BEMType bem, HCon
   }
   else if(anderson){
     ierr = PetscPrintf(PETSC_COMM_WORLD, "Using Anderson Acceleration...\n");CHKERRQ(ierr);
-    ierr = NonlinearAnderson((PetscErrorCode (*)(Vec, Mat*, void*))&FormASCNonlinearMatrix, (PetscErrorCode (*)(Vec, Vec*, void*))&ASCBq, guess, w, &nctx, &t1); CHKERRQ(ierr); //this is the OG version
+    ierr = NonlinearAnderson((PetscErrorCode (*)(Vec, Mat*, void*))&FormASCNonlinearMatrix, (PetscErrorCode (*)(Vec, Vec*, void*))&ASCBq, guess, w, &nctx, &t1, estError); CHKERRQ(ierr); //this is the OG version
   }
   else {
     ierr = PetscPrintf(PETSC_COMM_WORLD, "Using Picard iteration...\n");CHKERRQ(ierr);
-    ierr = NonlinearPicard((PetscErrorCode (*)(Vec, Mat*, void*))&FormASCNonlinearMatrix, (PetscErrorCode (*)(Vec, Vec*, void*))&ASCBq, guess, w, &nctx, &t1); CHKERRQ(ierr); //this is the OG version
+    ierr = NonlinearPicard((PetscErrorCode (*)(Vec, Mat*, void*))&FormASCNonlinearMatrix, (PetscErrorCode (*)(Vec, Vec*, void*))&ASCBq, guess, w, &nctx, &t1, estError); CHKERRQ(ierr); //this is the OG version
   }
 
   /*
@@ -1457,6 +1470,7 @@ PetscErrorCode makeBEMPcmQualReactionPotentialNonlinear(DM dm, BEMType bem, HCon
 
   ierr = PetscPrintf(PETSC_COMM_WORLD, "viewing charges...\n");
   ierr = VecViewFromOptions(t1, NULL, "-charge_view");CHKERRQ(ierr);
+  ierr = VecViewFromOptions(t1, NULL, "-charge_view_2");CHKERRQ(ierr);
   
   ierr = MatMult(C, t1, react);CHKERRQ(ierr);
   ierr = VecDestroy(&t0);CHKERRQ(ierr);
@@ -1649,7 +1663,7 @@ PetscErrorCode CalculateAnalyticSolvationEnergy(PetscReal epsIn, PetscReal epsOu
 
 .seealso: doAnalytical()
 @*/
-PetscErrorCode CalculateBEMSolvationEnergy(DM dm, SolvationContext *ctx, const char prefix[], BEMType bem, HContext params, PetscReal epsIn, PetscReal epsOut, PQRData *pqr, Vec w, Vec n, Vec react, PetscReal *E)
+PetscErrorCode CalculateBEMSolvationEnergy(DM dm, SolvationContext *ctx, const char prefix[], BEMType bem, HContext params, PetscReal epsIn, PetscReal epsOut, PQRData *pqr, Vec w, Vec n, Vec react, PetscReal *E, PetscReal *estError)
 {
   const PetscReal q     = ELECTRON_CHARGE;
   const PetscReal Na    = AVOGADRO_NUMBER;
@@ -1685,7 +1699,7 @@ PetscErrorCode CalculateBEMSolvationEnergy(DM dm, SolvationContext *ctx, const c
       ierr = makeBEMPcmQualReactionPotential(dm, bem, ctx, epsIn, epsOut, pqr, coords, w, n, react);CHKERRQ(ierr);
     }
     else {
-      ierr = makeBEMPcmQualReactionPotentialNonlinear(dm, bem, params, ctx, epsIn, epsOut, pqr, coords, w, n, react);CHKERRQ(ierr);
+      ierr = makeBEMPcmQualReactionPotentialNonlinear(dm, bem, params, ctx, epsIn, epsOut, pqr, coords, w, n, react, estError);CHKERRQ(ierr);
     }
     L = NULL;
     ierr = PetscLogEventBegin(CalcE_Event, L, react, pqr->q, 0);CHKERRQ(ierr);
@@ -1737,7 +1751,7 @@ PetscErrorCode ProcessOptions(MPI_Comm comm, SolvationContext *ctx)
   ierr = PetscOptionsString("-pqr_filename", "The filename for the .pqr file", "testSrfOnSurfacePoints", ctx->pqrFile, ctx->pqrFile, sizeof(ctx->pqrFile), NULL);CHKERRQ(ierr);
   ierr = PetscOptionsString("-crg_filename", "The filename for the .crg file", "testSrfOnSurfacePoints", ctx->crgFile, ctx->crgFile, sizeof(ctx->crgFile), NULL);CHKERRQ(ierr);
   ierr = PetscOptionsString("-k_view", "The filename for output of K matrix", "testSrfOnSurfacePoints", ctx->kFile, ctx->kFile, sizeof(ctx->kFile), NULL);CHKERRQ(ierr);
-  ierr = PetscOptionsString("-flops_view", "The filename for output of flops-precision data", "testSrfOnSurfacePoints", ctx->flopsFile, ctx->flopsFile, sizeof(ctx->flopsFile), NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsString("-flops_out", "The filename for output of flops-precision data", "testSrfOnSurfacePoints", ctx->flopsFile, ctx->flopsFile, sizeof(ctx->flopsFile), NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-is_sphere", "Use a spherical test case", "testSrfOnSurfacePoints", ctx->isSphere, &ctx->isSphere, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsInt("-num_charges", "The number of atomic charges in the solute", "testSrfOnSurfacePoints", ctx->numCharges, &ctx->numCharges, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsString("-srf_base", "The basename for the .srf file", "testSrfOnSurfacePoints", ctx->basename, ctx->basename, sizeof(ctx->basename), NULL);CHKERRQ(ierr);
@@ -1822,18 +1836,18 @@ PetscErrorCode workprectests(int argc, char **argv)
   ierr = PetscLogStageRegister("Panel Surface", &stagePanel);CHKERRQ(ierr);
   ierr = PetscLogStagePush(stageSurf);CHKERRQ(ierr);
   HContext params = {.alpha = 0.5, .beta=-60, .gamma=-0.5};
-  ierr = CalculateBEMSolvationEnergy(dm, &ctx, "lsrf_", BEM_POINT, params, ctx.epsIn, ctx.epsOut, &pqr, vertWeights, vertNormals, react, &ESurf);CHKERRQ(ierr);
+  ierr = CalculateBEMSolvationEnergy(dm, &ctx, "lsrf_", BEM_POINT, params, ctx.epsIn, ctx.epsOut, &pqr, vertWeights, vertNormals, react, &ESurf, NULL);CHKERRQ(ierr);
   ierr = PetscLogStagePop();CHKERRQ(ierr);
   ierr = PetscLogStagePush(stageSurfMF);CHKERRQ(ierr);
-  ierr = CalculateBEMSolvationEnergy(dm, &ctx, "lsrf_mf_", BEM_POINT_MF, params, ctx.epsIn, ctx.epsOut, &pqr, vertWeights, vertNormals, react, &ESurfMF);CHKERRQ(ierr);
+  ierr = CalculateBEMSolvationEnergy(dm, &ctx, "lsrf_mf_", BEM_POINT_MF, params, ctx.epsIn, ctx.epsOut, &pqr, vertWeights, vertNormals, react, &ESurfMF, NULL);CHKERRQ(ierr);
   ierr = PetscLogStagePop();CHKERRQ(ierr);
   ierr = PetscLogStagePush(stagePanel);CHKERRQ(ierr);
-  ierr = CalculateBEMSolvationEnergy(dm, &ctx, "lpanel_", BEM_PANEL, params, ctx.epsIn, ctx.epsOut, &pqr, panelAreas, vertNormals, react, &EPanel);CHKERRQ(ierr);
+  ierr = CalculateBEMSolvationEnergy(dm, &ctx, "lpanel_", BEM_PANEL, params, ctx.epsIn, ctx.epsOut, &pqr, panelAreas, vertNormals, react, &EPanel, NULL);CHKERRQ(ierr);
   ierr = PetscLogStagePop();CHKERRQ(ierr);
   if (msp.weights) {
     ierr = PetscLogStageRegister("MSP Surface", &stageMSP);CHKERRQ(ierr);
     ierr = PetscLogStagePush(stageMSP);CHKERRQ(ierr);
-    ierr = CalculateBEMSolvationEnergy(msp.dm, &ctx, "lmsp_", BEM_POINT, params, ctx.epsIn, ctx.epsOut, &pqr, msp.weights, msp.normals, react, &EMSP);CHKERRQ(ierr);
+    ierr = CalculateBEMSolvationEnergy(msp.dm, &ctx, "lmsp_", BEM_POINT, params, ctx.epsIn, ctx.epsOut, &pqr, msp.weights, msp.normals, react, &EMSP, NULL);CHKERRQ(ierr);
     ierr = PetscLogStagePop();CHKERRQ(ierr);
   }
   /* Verification */
@@ -1848,7 +1862,7 @@ PetscErrorCode workprectests(int argc, char **argv)
     
     ierr = PetscLogStageRegister("Simple Surface", &stageSimple);CHKERRQ(ierr);
     ierr = PetscLogStagePush(stageSimple);CHKERRQ(ierr);
-    ierr = CalculateBEMSolvationEnergy(dmSimple, &ctx, "lsimple_", BEM_POINT, params, ctx.epsIn, ctx.epsOut, &pqr, vertWeightsSimple, vertNormalsSimple, react, &ESimple);CHKERRQ(ierr);
+    ierr = CalculateBEMSolvationEnergy(dmSimple, &ctx, "lsimple_", BEM_POINT, params, ctx.epsIn, ctx.epsOut, &pqr, vertWeightsSimple, vertNormalsSimple, react, &ESimple, NULL);CHKERRQ(ierr);
     ierr = PetscLogStagePop();CHKERRQ(ierr);
     ierr = CalculateAnalyticSolvationEnergy(ctx.epsIn, ctx.epsOut, &pqr, ctx.R, ctx.Nmax, react, &Eref);CHKERRQ(ierr);
     ierr = PetscPrintf(PETSC_COMM_WORLD, "Eref = %.6f ESurf   = %.6f Error = %.6f Rel. error = %.4f\n", Eref, ESurf,   Eref-ESurf,   (Eref-ESurf)/Eref);CHKERRQ(ierr);
