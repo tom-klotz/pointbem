@@ -118,6 +118,8 @@ srf_argpqr:
 srf_3nir:
 	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker 3nir.pqr lolwhocares.siz dontneedthis.crg 3nir_scaledcharmm_1.srf 3nir.crg 1.4 2.0 .5 1 1 0 .
 	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker 3nir.pqr lolwhocares.siz dontneedthis.crg 3nir_scaledcharmm_2.srf 3nir.crg 1.4 2.0 1 1 1 0 .
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker 3nir.pqr lolwhocares.siz dontneedthis.crg 3nir_scaledcharmm_3.srf 3nir.crg 1.4 2.0 2 1 1 0 .
+
 
 srf_1hco:
 	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker 1hco.pqr charmm.siz charmm.crg 1hco_scaledcharmm_1.srf 1hco.crg 1.4 2.0 .5 1 1 0 .	
