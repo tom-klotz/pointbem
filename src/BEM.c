@@ -811,16 +811,18 @@ PetscErrorCode ASCBq(Vec sigma, Vec *Bq, NonlinearContext *ctx)
   //v1 = 1.0/w to fix scaling later
   ierr = VecDuplicate(*w, &v1);CHKERRQ(ierr);
   ierr = VecSet(v1, 1.0);CHKERRQ(ierr);
-  ierr = VecGetArrayRead(*w, &wvec);CHKERRQ(ierr);
-  ierr = VecGetArray(v1, &v1vec);CHKERRQ(ierr);
-  for(int i=0; i<dim; ++i) {
-    if(wvec[i] < 1e-10) {
-      v1vec[i] = 0;
-    }
-    else {
-      v1vec[i] = 1./wvec[i];
-    }
-  }
+  ierr = VecPointwiseDivide(v1, v1, *w);CHKERRQ(ierr);
+  //ierr = VecGetArrayRead(*w, &wvec);CHKERRQ(ierr);
+  //ierr = VecGetArray(v1, &v1vec);CHKERRQ(ierr);
+  //for(int i=0; i<dim; ++i) {
+  //if(wvec[i] == 0) {
+  //printf("One!\n");
+  //v1vec[i] = 0;
+  //}
+  //else {
+  //v1vec[i] = 1./wvec[i];
+  //}
+  //}
 
     
   //Bq = 2*epsHat*Bq
@@ -873,20 +875,19 @@ PetscErrorCode FormASCNonlinearMatrix(Vec sigma, Mat *A, NonlinearContext *ctx)
 
   //set up v1 to be 1.0/w to remove scaling later from stuff
   ierr = VecSet(v1, 1.0);CHKERRQ(ierr);
-  ierr = VecGetArrayRead(*w, &wvec);CHKERRQ(ierr);
-  ierr = VecGetArray(v1, &v1vec);CHKERRQ(ierr);
-  for(int i=0; i<dim; ++i) {
-    if(wvec[i] < 1e-10) {
-      v1vec[i] = 0;
-    }
-    else {
-      v1vec[i] = 1./wvec[i];
-    }
-  }
-  
-  //ierr = VecPointwiseDivide(v1, v1, *w);CHKERRQ(ierr); // v1 = 1.0/w (pointwise)
-  ierr = VecRestoreArray(v1, &v1vec);CHKERRQ(ierr);
-  ierr = VecRestoreArrayRead(*w, &wvec);CHKERRQ(ierr);
+  //ierr = VecGetArrayRead(*w, &wvec);CHKERRQ(ierr);
+  //ierr = VecGetArray(v1, &v1vec);CHKERRQ(ierr);
+  //for(int i=0; i<dim; ++i) {
+  //if(wvec[i] < 1e-10) {
+  //v1vec[i] = 1e-12;
+  //}
+  //else {
+  //v1vec[i] = 1./wvec[i];
+  //}
+  //}
+  ierr = VecPointwiseDivide(v1, v1, *w);CHKERRQ(ierr); // v1 = 1.0/w (pointwise)
+  //ierr = VecRestoreArray(v1, &v1vec);CHKERRQ(ierr);
+  //ierr = VecRestoreArrayRead(*w, &wvec);CHKERRQ(ierr);
   
   //A = I - 2*epsHat*K' - 2*epsHat h(En) = 2 epsHat
   //next two lines give K' but scaled on the left by w
@@ -903,12 +904,13 @@ PetscErrorCode FormASCNonlinearMatrix(Vec sigma, Mat *A, NonlinearContext *ctx)
   ierr = VecAXPY(En, 1.0, v2);CHKERRQ(ierr); //En = Bq+K'sigma
   ierr = VecScale(En, -1.0);CHKERRQ(ierr); //En = -Bq - K'sigma
 
+
   //calculate hEn
   ierr = nonlinearH(En, ctx->hctx, &hEn);CHKERRQ(ierr);
   
   //A = I - 2*epsHat*K' - 2*epshat*h(En)
   ierr = MatDiagonalSet(*A, hEn, ADD_VALUES);CHKERRQ(ierr);
-  ierr = MatScale(*A, -2.0*epsHat);CHKERRQ(ierr); 
+  ierr = MatScale(*A, -2.0*epsHat);CHKERRQ(ierr);
   ierr = MatShift(*A, 1.0);CHKERRQ(ierr);
 
   //assemble A
@@ -988,7 +990,7 @@ PetscErrorCode FastRHS(Vec sigma, Vec *out, NonlinearContext *ctx)
 
   //set up v1 to be 1.0/w to remove scaling later from stuff
   ierr = VecSet(v1, 1.0);CHKERRQ(ierr);
-  ierr = VecPointwiseDivide(v1, v1, *w);CHKERRQ(ierr); // v1 = 1.0/w (pointwise)
+  //ierr = VecPointwiseDivide(v1, v1, *w);CHKERRQ(ierr); // v1 = 1.0/w (pointwise)
   
   //A = I - 2*epsHat*K' - 2*epsHat h(En) = 2 epsHat
   //next two lines give K' but scaled on the left by w
@@ -1169,7 +1171,7 @@ PetscErrorCode NonlinearAnderson(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscE
     ierr = VecSum(temp, &err);CHKERRQ(ierr);
 
     //sigmal = (rcurr,rcurr-rprev)/(rcurr-rprev,rcurr-rprev)
-    ierr = VecWAXPY(rdiff, -1.0, rprev, rcurr);CHKERRQ(ierr);
+    ierr = VecWAXPY(rdiff, -1.0, rprev, rcurr);CHKERRQ(ierr); 
     ierr = VecPointwiseMult(temp, rcurr, rdiff);CHKERRQ(ierr);
     ierr = VecPointwiseMult(temp, temp, weights);CHKERRQ(ierr);
     ierr = VecSum(temp, &sigmatop); //sigmatop = (rcurr,rcurr-rprev)
@@ -1270,6 +1272,7 @@ PetscErrorCode NonlinearPicard(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscErr
   Mat A;
   Vec b;
   Vec errvec;
+  Vec test;
   KSP ksp;
   PetscInt maxIter = 15;
   PetscReal flops[maxIter+1];
@@ -1281,12 +1284,14 @@ PetscErrorCode NonlinearPicard(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscErr
 
   //initialize dense A matrix and b vector
   ierr = VecDuplicate(guess, &b); CHKERRQ(ierr);
+  ierr = VecDuplicate(guess, &test); CHKERRQ(ierr);
   ierr = MatCreateSeqDense(PETSC_COMM_WORLD, dim, dim, NULL, &A); CHKERRQ(ierr);
 
   //make sol vector to be same length as guess and copy values
   //VecDuplicate(guess, sol);
   ierr = VecCopy(guess, *sol); CHKERRQ(ierr);
-  
+
+
   //create linear solver context
   ierr = KSPCreate(PETSC_COMM_WORLD, &ksp); CHKERRQ(ierr);
   
@@ -1298,6 +1303,8 @@ PetscErrorCode NonlinearPicard(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscErr
   //get flops up until now setting up problem
   ierr = PetscGetFlops(flops);CHKERRQ(ierr);
 
+
+
   PetscReal err= 100;
   errors[0] = 100;
   for(int iter=1; iter<=maxIter; ++iter)
@@ -1307,6 +1314,7 @@ PetscErrorCode NonlinearPicard(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscErr
     //evaluate left and right hand sides of equation
     ierr = (*lhs)(*sol, &A, ctx); CHKERRQ(ierr);
     ierr = (*rhs)(*sol, &b, ctx); CHKERRQ(ierr);
+
     //copy current iteration value to prev
     ierr = VecCopy(*sol, errvec); CHKERRQ(ierr);
     //solve for next iteration
@@ -1316,6 +1324,7 @@ PetscErrorCode NonlinearPicard(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscErr
     //solve system
     ierr = KSPSolve(ksp, b, *sol); CHKERRQ(ierr);
 
+    
     //calculate current error, will be inaccurate on first iteration
     ierr = VecAXPY(errvec, -1.0, *sol); CHKERRQ(ierr);
     if(weights == NULL) {

@@ -297,11 +297,11 @@ PetscErrorCode loadSrfIntoSurfacePoints(MPI_Comm comm, const char filename[], Ve
     PetscInt  clSize, cl, s = 0;
 
     ierr = DMPlexComputeCellGeometryFVM(*dm, c, &area, centroid, normal);CHKERRQ(ierr);
-    a[c-cStart] = area;
-    if(area != area) {
-      area = 0;
-      ierr = PetscPrintf(PETSC_COMM_WORLD, "Area of panel is NaN! Setting to 0.\n");CHKERRQ(ierr);
+    if(area != area || area == 0) {
+      area = 1e-10;
+      ierr = PetscPrintf(PETSC_COMM_WORLD, "Area of panel is NaN! Setting to 1e-12.\n");CHKERRQ(ierr);
     }
+    a[c-cStart] = area;
     totArea += area;
     
     ierr = DMPlexGetTransitiveClosure(*dm, c, PETSC_TRUE, &clSize, &closure);CHKERRQ(ierr);
