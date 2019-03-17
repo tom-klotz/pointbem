@@ -792,6 +792,9 @@ PetscErrorCode ASCBq(Vec sigma, Vec *Bq, NonlinearContext *ctx)
   Mat*      B;
   Vec v1;
   Vec *w;
+  PetscScalar *v1vec;
+  const PetscScalar *wvec;
+  PetscInt dim;
   PetscErrorCode ierr;
 
   PetscFunctionBeginUser;
@@ -803,11 +806,23 @@ PetscErrorCode ASCBq(Vec sigma, Vec *Bq, NonlinearContext *ctx)
   epsIn  = ctx->epsIn;
   epsHat = (epsOut-epsIn)/(epsOut+epsIn);
 
+  ierr = VecGetSize(*w, &dim);CHKERRQ(ierr);
+  
   //v1 = 1.0/w to fix scaling later
   ierr = VecDuplicate(*w, &v1);CHKERRQ(ierr);
   ierr = VecSet(v1, 1.0);CHKERRQ(ierr);
-  ierr = VecPointwiseDivide(v1, v1, *w);CHKERRQ(ierr);
-  
+  ierr = VecGetArrayRead(*w, &wvec);CHKERRQ(ierr);
+  ierr = VecGetArray(v1, &v1vec);CHKERRQ(ierr);
+  for(int i=0; i<dim; ++i) {
+    if(wvec[i] < 1e-10) {
+      v1vec[i] = 0;
+    }
+    else {
+      v1vec[i] = 1./wvec[i];
+    }
+  }
+
+    
   //Bq = 2*epsHat*Bq
   ierr = MatMult(*B, ctx->pqr->q, *Bq);CHKERRQ(ierr); //is scaled on the left by w
   ierr = VecPointwiseMult(*Bq, *Bq, v1);CHKERRQ(ierr); //fixes scaling
@@ -830,6 +845,8 @@ PetscErrorCode FormASCNonlinearMatrix(Vec sigma, Mat *A, NonlinearContext *ctx)
   Mat*      B;
   Mat*      K;
   Vec*      w;
+  const PetscScalar *wvec;
+  PetscScalar *v1vec;
   Vec*      q;
   //Vec       iden;
   Vec       v1, v2, En, hEn;
@@ -856,7 +873,20 @@ PetscErrorCode FormASCNonlinearMatrix(Vec sigma, Mat *A, NonlinearContext *ctx)
 
   //set up v1 to be 1.0/w to remove scaling later from stuff
   ierr = VecSet(v1, 1.0);CHKERRQ(ierr);
-  ierr = VecPointwiseDivide(v1, v1, *w);CHKERRQ(ierr); // v1 = 1.0/w (pointwise)
+  ierr = VecGetArrayRead(*w, &wvec);CHKERRQ(ierr);
+  ierr = VecGetArray(v1, &v1vec);CHKERRQ(ierr);
+  for(int i=0; i<dim; ++i) {
+    if(wvec[i] < 1e-10) {
+      v1vec[i] = 0;
+    }
+    else {
+      v1vec[i] = 1./wvec[i];
+    }
+  }
+  
+  //ierr = VecPointwiseDivide(v1, v1, *w);CHKERRQ(ierr); // v1 = 1.0/w (pointwise)
+  ierr = VecRestoreArray(v1, &v1vec);CHKERRQ(ierr);
+  ierr = VecRestoreArrayRead(*w, &wvec);CHKERRQ(ierr);
   
   //A = I - 2*epsHat*K' - 2*epsHat h(En) = 2 epsHat
   //next two lines give K' but scaled on the left by w
@@ -1041,7 +1071,7 @@ PetscErrorCode FastPicard(PetscErrorCode (*rhs)(Vec, Vec*, void*), Vec guess, Ve
 
   ierr = VecDestroy(&errvec);CHKERRQ(ierr);
   ierr = VecDestroy(&prev);CHKERRQ(ierr);
-
+  
   PetscFunctionReturn(0);
 }
 
