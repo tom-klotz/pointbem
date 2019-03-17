@@ -207,7 +207,7 @@ PetscErrorCode PQRCreateFromPQR(MPI_Comm comm, const char pqrFile[], PQRData *pq
     r[i] = radius[i];
 
     q[i] = charges[i];
-    printf("CHARGE: %5.5f\n", charges[i]);
+    //printf("CHARGE: %5.5f\n", charges[i]);
     for (d = 0; d < 3; ++d) x[i*3+d] = coords[i*3+d];
   }
   ierr = VecRestoreArray(pqr->q, &q);CHKERRQ(ierr);
