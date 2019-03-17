@@ -84,7 +84,10 @@ spheremat_noprobe_panel:
 #	./calcSolvationEnergy -srf_base ../geometry/sphere_R6_vdens_noprobe_ -num_charges 10 -nmax 25 -srf_num 40 -density 40.0 -ksp_rtol 1.0e-10 -snes_linesearch_type basic -snes_type ksponly -potential_petscspace_degree 1 -k_view output/K_sphere_noprobe_panel_40.mat -use_panels 1
 
 argpqr_point:
-	./calcSolvationEnergy -is_sphere 0 -pqr_filename ../geometry/arg.pqr -srf_base ../geometry/argpqr_scaledcharmm_ -srf_num 1 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/K_argpqr_point_1.mat -dm_view hdf5:sol.h5 -charge_view hdf5:sol.h5::append -use_panels 1
+	./calcSolvationEnergy -is_sphere 0 -pqr_filename ../geometry/arg.pqr -srf_base ../geometry/argpqr_scaledcharmm_ -srf_num 1 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/K_argpqr_point_1.mat -dm_view hdf5:sol.h5 -charge_view hdf5:sol.h5::append -force_nonlinear 1 -alpha 0.5 -beta -60 -gamma -0.5
+
+3nir_point:
+	./calcSolvationEnergy -is_sphere 0 -pqr_filename ../geometry/3nir.pqr -srf_base ../geometry/3nir_scaledcharmm_ -srf_num 1 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/K_3nir_point_1.mat -dm_view hdf5:sol3nir.h5 -charge_view hdf5:sol3nir.h5::append -force_nonlinear 1 -alpha 0.5 -beta -60 -gamma -0.5 -use_panels 1
 
 1hco_point_nonlinear:
 	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/1hco.pqr -srf_base ../geometry/1hco_scaledcharmm_ -srf_num 1 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/K_1hco_point_1.mat -dm_view hdf5:sol1hco1.h5 -charge_view hdf5:sol1hco1.h5::append -force_nonlinear 1 -alpha 0.5 -beta -60 -gamma -0.5
