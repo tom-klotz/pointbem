@@ -112,7 +112,7 @@ void readPQR(const char* filename, unsigned int* numPDBentries, PDBentry** PDBen
          strncpy(number, line + 62, 6);
          number[6] = '\0';
          (*PDBentries)[atomcount].radius = atof(number);
-	 printf("RADIUS: %5.5f\n", atof(number));
+	 //printf("RADIUS: %5.5f\n", atof(number));
          //strncpy(number, line + 67, 3);
          //number[3] = '\0';
          //(*PDBentries)[atomcount].footnotenumber = atof(number);
