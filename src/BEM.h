@@ -76,4 +76,5 @@ PetscErrorCode CalculateAnalyticSolvationEnergy(PetscReal epsIn, PetscReal epsOu
 PetscErrorCode CalculateBEMSolvationEnergy(DM dm, SolvationContext *ctx, const char prefix[], BEMType bem, HContext params, PetscReal epsIn, PetscReal epsOut, PQRData *pqr, Vec w, Vec n, Vec react, PetscReal *E, PetscReal *estError);
 PetscErrorCode ProcessOptions(MPI_Comm comm, SolvationContext *ctx);
 PetscErrorCode workprectests(int argc, char **argv);
+PetscErrorCode CalcASCResidual(SNES snes, Vec x, Vec resid, NonlinearContext *ctx);
 #endif

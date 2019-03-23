@@ -258,10 +258,10 @@ PetscErrorCode loadSrfIntoSurfacePoints(MPI_Comm comm, const char filename[], Ve
   //printf("%c",basename[i]);
   //printf("\n\n");
   ierr = DMPlexCreateBardhanFromFile(comm, basename, PETSC_TRUE, n, dm);CHKERRQ(ierr);
-  ierr = DMPlexGetHeightStratum(*dm, 0, &cStart, &cEnd);CHKERRQ(ierr);
-  ierr = DMPlexGetDepthStratum(*dm, 0, &vStart, &vEnd);CHKERRQ(ierr);
   /* TODO Jay has a pass where he eliminates vertices of low weight, or which are too close to another vertex */
   ierr = DMSetFromOptions(*dm);CHKERRQ(ierr);
+  ierr = DMPlexGetHeightStratum(*dm, 0, &cStart, &cEnd);CHKERRQ(ierr);
+  ierr = DMPlexGetDepthStratum(*dm, 0, &vStart, &vEnd);CHKERRQ(ierr);
   ierr = DMViewFromOptions(*dm, NULL, "-dm_view");CHKERRQ(ierr);
   {
     PetscDS prob;
