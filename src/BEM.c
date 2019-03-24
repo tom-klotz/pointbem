@@ -833,6 +833,43 @@ PetscErrorCode ASCBq(Vec sigma, Vec *Bq, NonlinearContext *ctx)
   PetscFunctionReturn(0);
 }
 
+
+#undef __FUNCT__
+#define __FUNCT__ "CalcASCResidual"
+PetscErrorCode CalcASCResidual(SNES snes, Vec x, Vec resid, NonlinearContext *ctx)
+{
+  PetscReal epsOut, epsIn, epsHat;
+  PetscErrorCode ierr;
+  PetscInt dim;
+  Mat A;
+  Vec b;
+  Vec lhs;
+  Vec *w;
+  PetscFunctionBegin;
+
+  //get weights pointer
+  w = ctx->w;
+  
+  //get dimension of problem
+  ierr = VecGetSize(x, &dim);CHKERRQ(ierr);
+
+  //create A matrix and lhs and b vectors
+  ierr = VecDuplicate(x, &b);CHKERRQ(ierr);
+  ierr = VecDuplicate(x, &lhs);CHKERRQ(ierr);
+  ierr = MatCreateSeqDense(PETSC_COMM_WORLD, dim, dim, NULL, &A);CHKERRQ(ierr);
+
+  ierr = FormASCNonlinearMatrix(x, &A, ctx);CHKERRQ(ierr);
+  ierr = ASCBq(x, &b, ctx);CHKERRQ(ierr);
+
+  ierr = MatMult(A, x, lhs);CHKERRQ(ierr);
+  
+  ierr = VecWAXPY(resid, -1.0, lhs, b);CHKERRQ(ierr);
+  ierr = VecPointwiseMult(resid, resid, *w);CHKERRQ(ierr);
+  ierr = MatDestroy(&A);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+
 #undef __FUNCT__
 #define __FUNCT__ "FormASCNonlinearMatrix"
 /*@
@@ -888,7 +925,7 @@ PetscErrorCode FormASCNonlinearMatrix(Vec sigma, Mat *A, NonlinearContext *ctx)
   ierr = VecPointwiseDivide(v1, v1, *w);CHKERRQ(ierr); // v1 = 1.0/w (pointwise)
   //ierr = VecRestoreArray(v1, &v1vec);CHKERRQ(ierr);
   //ierr = VecRestoreArrayRead(*w, &wvec);CHKERRQ(ierr);
-  
+
   //A = I - 2*epsHat*K' - 2*epsHat h(En) = 2 epsHat
   //next two lines give K' but scaled on the left by w
   ierr = MatTranspose(*K, MAT_REUSE_MATRIX, A); CHKERRQ(ierr);
@@ -1486,19 +1523,34 @@ PetscErrorCode makeBEMPcmQualReactionPotentialNonlinear(DM dm, BEMType bem, HCon
   //checks which LHS and RHS to use
   PetscBool fastPicard = PETSC_FALSE;
   PetscBool anderson   = PETSC_FALSE;
+  PetscBool useSNES    = PETSC_FALSE;
   ierr = PetscOptionsGetBool(NULL, NULL, "-fast_picard", &fastPicard, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsGetBool(NULL, NULL, "-anderson", &anderson, NULL);CHKERRQ(ierr);
-  if(fastPicard) {
-    ierr = PetscPrintf(PETSC_COMM_WORLD, "Using Fast Picard iteration...\n");CHKERRQ(ierr);
-    ierr = FastPicard((PetscErrorCode (*)(Vec, Vec*, void*))&FastRHS, guess, w, &nctx, &t1);CHKERRQ(ierr);
-  }
-  else if(anderson){
-    ierr = PetscPrintf(PETSC_COMM_WORLD, "Using Anderson Acceleration...\n");CHKERRQ(ierr);
-    ierr = NonlinearAnderson((PetscErrorCode (*)(Vec, Mat*, void*))&FormASCNonlinearMatrix, (PetscErrorCode (*)(Vec, Vec*, void*))&ASCBq, guess, w, &nctx, &t1, estError); CHKERRQ(ierr); //this is the OG version
+  ierr = PetscOptionsGetBool(NULL, NULL, "-use_petsc_snes", &useSNES, NULL);CHKERRQ(ierr);
+  if(useSNES) {
+    SNES snes;
+    Vec val;
+    ierr = VecDuplicate(w, &val);CHKERRQ(ierr);
+    ierr = PetscPrintf(PETSC_COMM_WORLD, "Using petsc snes iteration...\n");CHKERRQ(ierr);
+    ierr = SNESCreate(PETSC_COMM_WORLD, &snes);CHKERRQ(ierr);
+    ierr = SNESSetFunction(snes, val, (PetscErrorCode (*)(SNES, Vec, Vec, void*))&CalcASCResidual, &nctx);
+    ierr = SNESSetFromOptions(snes);CHKERRQ(ierr);
+    ierr = VecZeroEntries(t1);CHKERRQ(ierr);
+    ierr = SNESSolve(snes, NULL, t1);CHKERRQ(ierr);
   }
   else {
-    ierr = PetscPrintf(PETSC_COMM_WORLD, "Using Picard iteration...\n");CHKERRQ(ierr);
-    ierr = NonlinearPicard((PetscErrorCode (*)(Vec, Mat*, void*))&FormASCNonlinearMatrix, (PetscErrorCode (*)(Vec, Vec*, void*))&ASCBq, guess, w, &nctx, &t1, estError); CHKERRQ(ierr); //this is the OG version
+    if(fastPicard) {
+      ierr = PetscPrintf(PETSC_COMM_WORLD, "Using Fast Picard iteration...\n");CHKERRQ(ierr);
+      ierr = FastPicard((PetscErrorCode (*)(Vec, Vec*, void*))&FastRHS, guess, w, &nctx, &t1);CHKERRQ(ierr);
+    }
+    else if(anderson){
+      ierr = PetscPrintf(PETSC_COMM_WORLD, "Using Anderson Acceleration...\n");CHKERRQ(ierr);
+      ierr = NonlinearAnderson((PetscErrorCode (*)(Vec, Mat*, void*))&FormASCNonlinearMatrix, (PetscErrorCode (*)(Vec, Vec*, void*))&ASCBq, guess, w, &nctx, &t1, estError); CHKERRQ(ierr); //this is the OG version
+    }
+    else {
+      ierr = PetscPrintf(PETSC_COMM_WORLD, "Using Picard iteration...\n");CHKERRQ(ierr);
+      ierr = NonlinearPicard((PetscErrorCode (*)(Vec, Mat*, void*))&FormASCNonlinearMatrix, (PetscErrorCode (*)(Vec, Vec*, void*))&ASCBq, guess, w, &nctx, &t1, estError); CHKERRQ(ierr); //this is the OG version
+    }
   }
 
   /*
