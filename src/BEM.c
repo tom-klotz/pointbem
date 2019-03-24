@@ -1788,6 +1788,8 @@ PetscErrorCode CalculateBEMSolvationEnergy(DM dm, SolvationContext *ctx, const c
   case BEM_PANEL_MF:
     ierr = DMGetCoordinatesLocal(dm, &coords);CHKERRQ(ierr);
 
+
+    ierr = VecViewFromOptions(pqr->q, NULL, "-intcharge_view");CHKERRQ(ierr);
     //alpha=0 runs standard linear problem while alpha!=0 calls nonlinear routine
     if (params.alpha==0.0 && ctx->forceNonlinear == PETSC_FALSE) {
       ierr = makeBEMPcmQualReactionPotential(dm, bem, ctx, epsIn, epsOut, pqr, coords, w, n, react);CHKERRQ(ierr);

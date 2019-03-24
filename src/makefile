@@ -87,7 +87,7 @@ argpqr_point:
 	./calcSolvationEnergy -is_sphere 0 -pqr_filename ../geometry/arg.pqr -srf_base ../geometry/argpqr_scaledcharmm_ -srf_num 1 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -k_view output/K_argpqr_point_1.mat -dm_view hdf5:sol.h5 -charge_view hdf5:sol.h5::append -force_nonlinear 1 -alpha 0.5 -beta -60 -gamma -0.5
 
 6dz0_point:
-	./calcSolvationEnergy -is_sphere 0 -pqr_filename ../geometry/6dz0.pqr -srf_base ../geometry/6dz0_scaledcharmm_ -srf_num 1 -ksp_rtol 1.0e-16 -potential_petscspace_degree 1 -k_view output/K_6dz0_point_1.mat -dm_view hdf5:sol6dz01.h5 -charge_view hdf5:sol6dz01.h5::append -force_nonlinear 1 -alpha 0.5 -beta -60 -gamma -0.5 -info_out output/6dz0_point_1_data.txt -flops_out output/6dz0_point_1_flops.txt -ksp_gmres_restart 200
+	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/6dz0.pqr -srf_base ../geometry/6dz0_scaledcharmm_ -crg_filename ../geometry/6dz0.crg -srf_num 1 -ksp_rtol 1.0e-8 -potential_petscspace_degree 1 -k_view output/K_6dz0_point_1.mat -dm_view hdf5:sol6dz01.h5 -charge_view hdf5:sol6dz01.h5::append -force_nonlinear 1 -alpha 0.5 -beta -60 -gamma -0.5 -info_out output/6dz0_point_1_data.txt -flops_out output/6dz0_point_1_flops.txt -ksp_gmres_restart 300 -intcharge_view ascii:weights.txt -ksp_type lgmres -ksp_lgmres_augment 50 -use_petsc_snes -snes_type anderson
 
 3nir_point:
 	./calcSolvationEnergy -is_sphere 0 -pqr_filename ../geometry/3nir.pqr -srf_base ../geometry/3nir_scaledcharmm_ -srf_num 1 -ksp_rtol 1.0e-16 -potential_petscspace_degree 1 -k_view output/K_3nir_point_1.mat -dm_view hdf5:sol3nir1.h5 -charge_view hdf5:sol3nir1.h5::append -force_nonlinear 1 -alpha 0.5 -beta -60 -gamma -0.5 -info_out output/3nir_point_1_data.txt -flops_out output/3nir_point_1_flops.txt -ksp_gmres_restart 200
