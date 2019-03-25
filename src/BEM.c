@@ -737,6 +737,20 @@ PetscErrorCode ComputeBEMJacobian(SNES snes, Vec x, Mat J, Mat P, void *ctx)
 }
 
 #undef __FUNCT__
+#define __FUNCT__ "ComputeBEMNonlinearJacobian"
+PetscErrorCode ComputeBEMNonlinearJacobian(SNES snes, Vec x, Mat J, Mat P, NonlinearContext *ctx)
+{
+  Mat *A = ctx->A;
+  PetscErrorCode ierr;
+
+
+  PetscFunctionBegin;
+  ierr = FormASCNonlinearMatrix(x, A, ctx);CHKERRQ(ierr);
+
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
 #define __FUNCT__ "nonlinearH"
 /*@
   nonlinearH - the function h(En) defining the nonlinearity
@@ -835,13 +849,16 @@ PetscErrorCode ASCBq(Vec sigma, Vec *Bq, NonlinearContext *ctx)
 
 
 #undef __FUNCT__
+
+
+#undef __FUNCT__
 #define __FUNCT__ "CalcASCResidual"
 PetscErrorCode CalcASCResidual(SNES snes, Vec x, Vec resid, NonlinearContext *ctx)
 {
   PetscReal epsOut, epsIn, epsHat;
   PetscErrorCode ierr;
   PetscInt dim;
-  Mat A;
+  Mat *A;
   Vec b;
   Vec lhs;
   Vec *w;
@@ -849,6 +866,9 @@ PetscErrorCode CalcASCResidual(SNES snes, Vec x, Vec resid, NonlinearContext *ct
 
   //get weights pointer
   w = ctx->w;
+
+  //get A matrix pointer
+  A = ctx->A;
   
   //get dimension of problem
   ierr = VecGetSize(x, &dim);CHKERRQ(ierr);
@@ -856,16 +876,17 @@ PetscErrorCode CalcASCResidual(SNES snes, Vec x, Vec resid, NonlinearContext *ct
   //create A matrix and lhs and b vectors
   ierr = VecDuplicate(x, &b);CHKERRQ(ierr);
   ierr = VecDuplicate(x, &lhs);CHKERRQ(ierr);
-  ierr = MatCreateSeqDense(PETSC_COMM_WORLD, dim, dim, NULL, &A);CHKERRQ(ierr);
 
-  ierr = FormASCNonlinearMatrix(x, &A, ctx);CHKERRQ(ierr);
+
+  A = ctx->A;
+  
+  ierr = FormASCNonlinearMatrix(x, A, ctx);CHKERRQ(ierr);
   ierr = ASCBq(x, &b, ctx);CHKERRQ(ierr);
 
-  ierr = MatMult(A, x, lhs);CHKERRQ(ierr);
+  ierr = MatMult(*A, x, lhs);CHKERRQ(ierr);
   
-  ierr = VecWAXPY(resid, -1.0, lhs, b);CHKERRQ(ierr);
-  ierr = VecPointwiseMult(resid, resid, *w);CHKERRQ(ierr);
-  ierr = MatDestroy(&A);CHKERRQ(ierr);
+  ierr = VecWAXPY(resid, -1.0, b, lhs);CHKERRQ(ierr);
+  //ierr = VecPointwiseMult(resid, resid, *w);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -1520,6 +1541,7 @@ PetscErrorCode makeBEMPcmQualReactionPotentialNonlinear(DM dm, BEMType bem, HCon
   nctx.w      = &w;
   nctx.hctx   = &params;
 
+  
   //checks which LHS and RHS to use
   PetscBool fastPicard = PETSC_FALSE;
   PetscBool anderson   = PETSC_FALSE;
@@ -1527,16 +1549,25 @@ PetscErrorCode makeBEMPcmQualReactionPotentialNonlinear(DM dm, BEMType bem, HCon
   ierr = PetscOptionsGetBool(NULL, NULL, "-fast_picard", &fastPicard, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsGetBool(NULL, NULL, "-anderson", &anderson, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsGetBool(NULL, NULL, "-use_petsc_snes", &useSNES, NULL);CHKERRQ(ierr);
+  Mat A;
   if(useSNES) {
     SNES snes;
     Vec val;
-    ierr = VecDuplicate(w, &val);CHKERRQ(ierr);
     ierr = PetscPrintf(PETSC_COMM_WORLD, "Using petsc snes iteration...\n");CHKERRQ(ierr);
+    
+    ierr = VecDuplicate(w, &val);CHKERRQ(ierr);
+    ierr = MatCreateSeqDense(PETSC_COMM_SELF, w_size, w_size, NULL, &A);CHKERRQ(ierr);
+    ierr = FormASCNonlinearMatrix(guess, &A, &nctx);CHKERRQ(ierr);
+    nctx.A = &A;
+
     ierr = SNESCreate(PETSC_COMM_WORLD, &snes);CHKERRQ(ierr);
     ierr = SNESSetFunction(snes, val, (PetscErrorCode (*)(SNES, Vec, Vec, void*))&CalcASCResidual, &nctx);
+    ierr = SNESSetJacobian(snes, A, A, (PetscErrorCode (*)(SNES,Vec,Mat,Mat,void*))&ComputeBEMNonlinearJacobian, &nctx);
+    //ierr = SNESSetJacobian(sneas,
     ierr = SNESSetFromOptions(snes);CHKERRQ(ierr);
     ierr = VecZeroEntries(t1);CHKERRQ(ierr);
     ierr = SNESSolve(snes, NULL, t1);CHKERRQ(ierr);
+    ierr = MatDestroy(&A);CHKERRQ(ierr);
   }
   else {
     if(fastPicard) {
@@ -1788,6 +1819,8 @@ PetscErrorCode CalculateBEMSolvationEnergy(DM dm, SolvationContext *ctx, const c
   case BEM_PANEL_MF:
     ierr = DMGetCoordinatesLocal(dm, &coords);CHKERRQ(ierr);
 
+
+    ierr = VecViewFromOptions(pqr->q, NULL, "-intcharge_view");CHKERRQ(ierr);
     //alpha=0 runs standard linear problem while alpha!=0 calls nonlinear routine
     if (params.alpha==0.0 && ctx->forceNonlinear == PETSC_FALSE) {
       ierr = makeBEMPcmQualReactionPotential(dm, bem, ctx, epsIn, epsOut, pqr, coords, w, n, react);CHKERRQ(ierr);
