@@ -15,6 +15,7 @@ typedef struct {
   PetscReal epsOut;
   Mat*      B;
   Mat*      K;
+  Mat*      A; //left hand side matrix for nonlinear problem
   Mat*      Elec;
   Vec*      Bq;
   Vec*      w;
@@ -77,4 +78,5 @@ PetscErrorCode CalculateBEMSolvationEnergy(DM dm, SolvationContext *ctx, const c
 PetscErrorCode ProcessOptions(MPI_Comm comm, SolvationContext *ctx);
 PetscErrorCode workprectests(int argc, char **argv);
 PetscErrorCode CalcASCResidual(SNES snes, Vec x, Vec resid, NonlinearContext *ctx);
+PetscErrorCode ComputeBEMNonlinearJacobian(SNES snes, Vec x, Mat J, Mat P, NonlinearContext *ctx);
 #endif
