@@ -116,7 +116,7 @@ srf_argpqr:
 	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker arg.pqr lolwhocares.siz dontneedthis.crg argpqr_scaledcharmm_2.srf argpqr.crg 1.4 2.0 2 1 1 0 .
 
 srf_6dz0:
-	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker 3nir.pqr lolwhocares.siz dontneedthis.crg 6dz0_scaledcharmm_1.srf 6dz0.crg .5 2.0 1.5 1 1 0 .
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker 6dz0.pdb charmm.siz charmm.crg 6dz0_scaledcharmm_1.srf 6dz0.crg 0 2.0 3.1 1 1 0 .
 
 srf_3nir:
 	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker 3nir.pqr lolwhocares.siz dontneedthis.crg 3nir_scaledcharmm_1.srf 3nir.crg .5 2.0 .5 1 1 0 .
