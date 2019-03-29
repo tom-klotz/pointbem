@@ -620,13 +620,19 @@ PetscErrorCode outputK(SolvationContext *ctx, Mat K) {
 
   
   PetscBool flg;
+  PetscBool flg2;
   PetscViewer view;
-  ierr = PetscOptionsHasName(NULL, NULL, "-k_view", &flg);
-  if(flg) {
+  ierr = PetscOptionsHasName(NULL, NULL, "-k_view", &flg);CHKERRQ(ierr);
+  ierr = PetscOptionsHasName(NULL, NULL, "-k_draw", &flg2);CHKERRQ(ierr);
+  if(flg) { //write K matrix to file
     ierr = PetscViewerBinaryOpen(PETSC_COMM_WORLD, ctx->kFile, FILE_MODE_WRITE, &view);CHKERRQ(ierr);
     ierr = MatView(K, view);CHKERRQ(ierr);
     ierr = PetscViewerDestroy(&view);CHKERRQ(ierr);
   }
+  if(flg2) { //draw K matrix
+    ierr = MatViewFromOptions(K, NULL, "-k_draw");CHKERRQ(ierr);
+  }
+
   
   PetscFunctionReturn(0);
 }
