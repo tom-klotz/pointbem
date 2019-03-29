@@ -212,7 +212,7 @@ arg_point_anderson:
 	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/arg.pdb -crg_filename ../geometry/jr1.crg -srf_base ../geometry/arg_scaledcharmm_ -srf_num 16 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -force_nonlinear 1 -alpha .5 -beta -60 -gamma -0.5 -flops_out output/arg_point_16_anderson_flops.txt -info_out output/arg_point_16_anderson_data.txt -anderson 1
 
 
-arg_panels_picard:
+arg_panel_picard:
 	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/arg.pdb -crg_filename ../geometry/jr1.crg -srf_base ../geometry/arg_scaledcharmm_ -srf_num 1 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -force_nonlinear 1 -alpha .5 -beta -60 -gamma -0.5 -flops_out output/arg_panel_1_picard_flops.txt -info_out output/arg_panel_1_picard_data.txt -use_panels 1
 	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/arg.pdb -crg_filename ../geometry/jr1.crg -srf_base ../geometry/arg_scaledcharmm_ -srf_num 2 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -force_nonlinear 1 -alpha .5 -beta -60 -gamma -0.5 -flops_out output/arg_panel_2_picard_flops.txt -info_out output/arg_panel_2_picard_data.txt -use_panels 1
 	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/arg.pdb -crg_filename ../geometry/jr1.crg -srf_base ../geometry/arg_scaledcharmm_ -srf_num 3 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -force_nonlinear 1 -alpha .5 -beta -60 -gamma -0.5 -flops_out output/arg_panel_3_picard_flops.txt -info_out output/arg_panel_3_picard_data.txt -use_panels 1
@@ -231,7 +231,7 @@ arg_panels_picard:
 	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/arg.pdb -crg_filename ../geometry/jr1.crg -srf_base ../geometry/arg_scaledcharmm_ -srf_num 16 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -force_nonlinear 1 -alpha .5 -beta -60 -gamma -0.5 -flops_out output/arg_panel_16_picard_flops.txt -info_out output/arg_panel_16_picard_data.txt -use_panels 1
 
 
-arg_panels_anderson:
+arg_panel_anderson:
 	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/arg.pdb -crg_filename ../geometry/jr1.crg -srf_base ../geometry/arg_scaledcharmm_ -srf_num 1 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -force_nonlinear 1 -alpha .5 -beta -60 -gamma -0.5 -flops_out output/arg_panel_1_anderson_flops.txt -info_out output/arg_panel_1_anderson_data.txt -use_panels 1 -anderson 1
 	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/arg.pdb -crg_filename ../geometry/jr1.crg -srf_base ../geometry/arg_scaledcharmm_ -srf_num 2 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -force_nonlinear 1 -alpha .5 -beta -60 -gamma -0.5 -flops_out output/arg_panel_2_anderson_flops.txt -info_out output/arg_panel_2_anderson_data.txt -use_panels 1 -anderson 1
 	./calcSolvationEnergy -is_sphere 0 -pdb_filename ../geometry/arg.pdb -crg_filename ../geometry/jr1.crg -srf_base ../geometry/arg_scaledcharmm_ -srf_num 3 -ksp_rtol 1.0e-10 -potential_petscspace_degree 1 -force_nonlinear 1 -alpha .5 -beta -60 -gamma -0.5 -flops_out output/arg_panel_3_anderson_flops.txt -info_out output/arg_panel_3_anderson_data.txt -use_panels 1 -anderson 1
