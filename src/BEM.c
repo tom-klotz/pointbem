@@ -1150,6 +1150,8 @@ PetscErrorCode NonlinearAnderson(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscE
   Mat A;
   Vec b;
   KSP ksp;
+  PC pc;
+
   Vec xcurr, ycurr, xprev, yprev;
   Vec rcurr, rprev, rdiff;
   Vec ucurr, vcurr;
@@ -1197,6 +1199,9 @@ PetscErrorCode NonlinearAnderson(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscE
   ierr = (*rhs)(xprev, &b, ctx);CHKERRQ(ierr);
   ierr = KSPSetOperators(ksp, A, A);CHKERRQ(ierr);
   ierr = KSPSetTolerances(ksp, PETSC_DEFAULT, PETSC_DEFAULT, PETSC_DEFAULT, PETSC_DEFAULT);CHKERRQ(ierr);
+  ierr = KSPSetFromOptions(ksp);CHKERRQ(ierr);
+  ierr = KSPGetPC(ksp, &pc);
+  ierr = PCViewFromOptions(pc, NULL, "-pc_view");CHKERRQ(ierr);
   ierr = KSPSolve(ksp, b, yprev);CHKERRQ(ierr);
   //rprev = yprev - xprev
   ierr = VecWAXPY(rprev, -1.0, xprev, yprev);CHKERRQ(ierr);
@@ -1224,6 +1229,8 @@ PetscErrorCode NonlinearAnderson(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscE
     ierr = KSPSetOperators(ksp, A, A); CHKERRQ(ierr);
     ierr = KSPSetTolerances(ksp, PETSC_DEFAULT, PETSC_DEFAULT, PETSC_DEFAULT, PETSC_DEFAULT); CHKERRQ(ierr);
     ierr = KSPSetFromOptions(ksp); CHKERRQ(ierr);
+    ierr = KSPGetPC(ksp, &pc);
+    ierr = PCViewFromOptions(pc, NULL, "-pc_view");CHKERRQ(ierr);
     ierr = KSPSolve(ksp, b, ycurr); CHKERRQ(ierr);
 
     //rcurr = ycurr - xcurr
@@ -1338,6 +1345,7 @@ PetscErrorCode NonlinearPicard(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscErr
   Vec errvec;
   Vec test;
   KSP ksp;
+  PC pc;
   PetscInt maxIter = 15;
   PetscReal flops[maxIter+1];
   PetscReal errors[maxIter+1];
@@ -1385,6 +1393,9 @@ PetscErrorCode NonlinearPicard(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscErr
     ierr = KSPSetOperators(ksp, A, A); CHKERRQ(ierr);
     ierr = KSPSetTolerances(ksp, PETSC_DEFAULT, PETSC_DEFAULT, PETSC_DEFAULT, PETSC_DEFAULT); CHKERRQ(ierr);
     ierr = KSPSetFromOptions(ksp); CHKERRQ(ierr);
+    ierr = KSPGetPC(ksp, &pc);
+    ierr = PCViewFromOptions(pc, NULL, "-pc_view");CHKERRQ(ierr);
+
     //solve system
     ierr = KSPSolve(ksp, b, *sol); CHKERRQ(ierr);
 

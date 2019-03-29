@@ -115,7 +115,7 @@ int main(int argc, char **argv)
       ierr = PetscFPrintf(PETSC_COMM_SELF, infoFile, "N = %D\nTYPE = PANELS\n", cEnd-cStart);CHKERRQ(ierr);
     }
     else {
-      ierr = PetscFPrintf(PETSC_COMM_SELF, infoFile, "N=%D\nTYPE = POINTS\n", vEnd-vStart);CHKERRQ(ierr);
+      ierr = PetscFPrintf(PETSC_COMM_SELF, infoFile, "N = %D\nTYPE = POINTS\n", vEnd-vStart);CHKERRQ(ierr);
     }
     //output nonlinear parameters
     ierr = PetscFPrintf(PETSC_COMM_SELF, infoFile, "alpha, beta, gamma: %5.5f %5.5f %5.5f\n", params.alpha, params.beta, params.gamma);CHKERRQ(ierr);
