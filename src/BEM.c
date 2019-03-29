@@ -1199,9 +1199,9 @@ PetscErrorCode NonlinearAnderson(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscE
   ierr = (*rhs)(xprev, &b, ctx);CHKERRQ(ierr);
   ierr = KSPSetOperators(ksp, A, A);CHKERRQ(ierr);
   ierr = KSPSetTolerances(ksp, PETSC_DEFAULT, PETSC_DEFAULT, PETSC_DEFAULT, PETSC_DEFAULT);CHKERRQ(ierr);
-  ierr = KSPSetFromOptions(ksp);CHKERRQ(ierr);
-  ierr = KSPGetPC(ksp, &pc);
-  ierr = PCViewFromOptions(pc, NULL, "-pc_view");CHKERRQ(ierr);
+  //ierr = KSPSetFromOptions(ksp);CHKERRQ(ierr);
+  //ierr = KSPGetPC(ksp, &pc);
+  //ierr = PCViewFromOptions(pc, NULL, "-pc_view");CHKERRQ(ierr);
   ierr = KSPSolve(ksp, b, yprev);CHKERRQ(ierr);
   //rprev = yprev - xprev
   ierr = VecWAXPY(rprev, -1.0, xprev, yprev);CHKERRQ(ierr);
@@ -1229,8 +1229,8 @@ PetscErrorCode NonlinearAnderson(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscE
     ierr = KSPSetOperators(ksp, A, A); CHKERRQ(ierr);
     ierr = KSPSetTolerances(ksp, PETSC_DEFAULT, PETSC_DEFAULT, PETSC_DEFAULT, PETSC_DEFAULT); CHKERRQ(ierr);
     ierr = KSPSetFromOptions(ksp); CHKERRQ(ierr);
-    ierr = KSPGetPC(ksp, &pc);
-    ierr = PCViewFromOptions(pc, NULL, "-pc_view");CHKERRQ(ierr);
+    //ierr = KSPGetPC(ksp, &pc);
+    //ierr = PCViewFromOptions(pc, NULL, "-pc_view");CHKERRQ(ierr);
     ierr = KSPSolve(ksp, b, ycurr); CHKERRQ(ierr);
 
     //rcurr = ycurr - xcurr
