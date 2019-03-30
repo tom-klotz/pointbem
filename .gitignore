@@ -8,6 +8,7 @@ src/output/*.txt
 RDict.log
 geometry/*.srf
 geometry/surf*
+geometry/vgcore.*
 src/meshmaker/meshmaker
 bin
 *.pyc
@@ -16,3 +17,5 @@ bin
 *~
 *.mat
 *.mat.info
+*.h5
+*.xmf
