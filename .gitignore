@@ -4,6 +4,7 @@ testSrfOnSurfacePoints
 calcSolvationEnergy
 src/example.log
 src/example.log.bkp
+src/output/*.txt
 RDict.log
 geometry/*.srf
 geometry/surf*
