@@ -43,21 +43,42 @@ srf_sphere_noprobe:
 
 # https://en.wikipedia.org/wiki/Amino_acid#Table_of_standard_amino_acid_abbreviations_and_properties
 srf_asp:
-	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker asp.pdb scaled_charmm22.siz charmm.crg asp_scaledcharmm_1.srf asp.crg 1.4 2.0 1 1 1 0 .
-	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker asp.pdb scaled_charmm22.siz charmm.crg asp_scaledcharmm_2.srf asp.crg 1.4 2.0 2 1 1 0 .
-	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker asp.pdb scaled_charmm22.siz charmm.crg asp_scaledcharmm_3.srf asp.crg 1.4 2.0 3 1 1 0 .
-	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker asp.pdb scaled_charmm22.siz charmm.crg asp_scaledcharmm_4.srf asp.crg 1.4 2.0 4 1 1 0 .
-	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker asp.pdb scaled_charmm22.siz charmm.crg asp_scaledcharmm_5.srf asp.crg 1.4 2.0 5 1 1 0 .
-	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker asp.pdb scaled_charmm22.siz charmm.crg asp_scaledcharmm_6.srf asp.crg 1.4 2.0 6 1 1 0 .
-	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker asp.pdb scaled_charmm22.siz charmm.crg asp_scaledcharmm_7.srf asp.crg 1.4 2.0 7 1 1 0 .
-	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker asp.pdb scaled_charmm22.siz charmm.crg asp_scaledcharmm_8.srf asp.crg 1.4 2.0 8 1 1 0 .
-	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker asp.pdb scaled_charmm22.siz charmm.crg asp_scaledcharmm_12.srf asp.crg 1.4 2.0 12 1 1 0 .
-	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker asp.pdb scaled_charmm22.siz charmm.crg asp_scaledcharmm_16.srf asp.crg 1.4 2.0 16 1 1 0 .
-	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker asp.pdb scaled_charmm22.siz charmm.crg asp_scaledcharmm_20.srf asp.crg 1.4 2.0 20 1 1 0 .
-	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker asp.pdb scaled_charmm22.siz charmm.crg asp_scaledcharmm_24.srf asp.crg 1.4 2.0 24 1 1 0 .
-	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker asp.pdb scaled_charmm22.siz charmm.crg asp_scaledcharmm_28.srf asp.crg 1.4 2.0 28 1 1 0 .
-	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker asp.pdb scaled_charmm22.siz charmm.crg asp_scaledcharmm_32.srf asp.crg 1.4 2.0 32 1 1 0 .
-	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker asp.pdb scaled_charmm22.siz charmm.crg asp_scaledcharmm_50.srf asp.crg 1.4 2.0 50 1 1 0 .
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker asp.pdb scaled_charmm22.siz charmm.crg asp_scaledcharmm_1.srf asp.crg 0 2.0 .5 1 1 0 .
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker asp.pdb scaled_charmm22.siz charmm.crg asp_scaledcharmm_2.srf asp.crg 0 2.0 .6 1 1 0 .
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker asp.pdb scaled_charmm22.siz charmm.crg asp_scaledcharmm_3.srf asp.crg 0 2.0 .7 1 1 0 .
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker asp.pdb scaled_charmm22.siz charmm.crg asp_scaledcharmm_4.srf asp.crg 0 2.0 .8 1 1 0 .
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker asp.pdb scaled_charmm22.siz charmm.crg asp_scaledcharmm_5.srf asp.crg 0 2.0 .9 1 1 0 .
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker asp.pdb scaled_charmm22.siz charmm.crg asp_scaledcharmm_6.srf asp.crg 0 2.0 1.0 1 1 0 .
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker asp.pdb scaled_charmm22.siz charmm.crg asp_scaledcharmm_7.srf asp.crg 0 2.0 1.2 1 1 0 .
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker asp.pdb scaled_charmm22.siz charmm.crg asp_scaledcharmm_8.srf asp.crg 0 2.0 1.4 1 1 0 .
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker asp.pdb scaled_charmm22.siz charmm.crg asp_scaledcharmm_9.srf asp.crg 0 2.0 1.6 1 1 0 .
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker asp.pdb scaled_charmm22.siz charmm.crg asp_scaledcharmm_10.srf asp.crg 0 2.0 1.8 1 1 0 .
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker asp.pdb scaled_charmm22.siz charmm.crg asp_scaledcharmm_11.srf asp.crg 0 2.0 2.0 1 1 0 .
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker asp.pdb scaled_charmm22.siz charmm.crg asp_scaledcharmm_12.srf asp.crg 0 2.0 2.25 1 1 0 .
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker asp.pdb scaled_charmm22.siz charmm.crg asp_scaledcharmm_13.srf asp.crg 0 2.0 2.5 1 1 0 .
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker asp.pdb scaled_charmm22.siz charmm.crg asp_scaledcharmm_14.srf asp.crg 0 2.0 2.75 1 1 0 .
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker asp.pdb scaled_charmm22.siz charmm.crg asp_scaledcharmm_15.srf asp.crg 0 2.0 3 1 1 0 .
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker asp.pdb scaled_charmm22.siz charmm.crg asp_scaledcharmm_16.srf asp.crg 0 2.0 3.5 1 1 0 .
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker asp.pdb scaled_charmm22.siz charmm.crg asp_scaledcharmm_17.srf asp.crg 0 2.0 4 1 1 0 .
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker asp.pdb scaled_charmm22.siz charmm.crg asp_scaledcharmm_18.srf asp.crg 0 2.0 4.5 1 1 0 .
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker asp.pdb scaled_charmm22.siz charmm.crg asp_scaledcharmm_19.srf asp.crg 0 2.0 5 1 1 0 .
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker asp.pdb scaled_charmm22.siz charmm.crg asp_scaledcharmm_20.srf asp.crg 0 2.0 6 1 1 0 .
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker asp.pdb scaled_charmm22.siz charmm.crg asp_scaledcharmm_21.srf asp.crg 0 2.0 7 1 1 0 .
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker asp.pdb scaled_charmm22.siz charmm.crg asp_scaledcharmm_22.srf asp.crg 0 2.0 8 1 1 0 .
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker asp.pdb scaled_charmm22.siz charmm.crg asp_scaledcharmm_23.srf asp.crg 0 2.0 9 1 1 0 .
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker asp.pdb scaled_charmm22.siz charmm.crg asp_scaledcharmm_24.srf asp.crg 0 2.0 10 1 1 0 .
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker asp.pdb scaled_charmm22.siz charmm.crg asp_scaledcharmm_25.srf asp.crg 0 2.0 12 1 1 0 .
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker asp.pdb scaled_charmm22.siz charmm.crg asp_scaledcharmm_26.srf asp.crg 0 2.0 14 1 1 0 .
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker asp.pdb scaled_charmm22.siz charmm.crg asp_scaledcharmm_27.srf asp.crg 0 2.0 16 1 1 0 .
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker asp.pdb scaled_charmm22.siz charmm.crg asp_scaledcharmm_28.srf asp.crg 0 2.0 18 1 1 0 .
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker asp.pdb scaled_charmm22.siz charmm.crg asp_scaledcharmm_29.srf asp.crg 0 2.0 20 1 1 0 .
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker asp.pdb scaled_charmm22.siz charmm.crg asp_scaledcharmm_30.srf asp.crg 0 2.0 22 1 1 0 .
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker asp.pdb scaled_charmm22.siz charmm.crg asp_scaledcharmm_31.srf asp.crg 0 2.0 25 1 1 0 .
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker asp.pdb scaled_charmm22.siz charmm.crg asp_scaledcharmm_32.srf asp.crg 0 2.0 30 1 1 0 .
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker asp.pdb scaled_charmm22.siz charmm.crg asp_scaledcharmm_33.srf asp.crg 0 2.0 35 1 1 0 .
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker asp.pdb scaled_charmm22.siz charmm.crg asp_scaledcharmm_34.srf asp.crg 0 2.0 50 1 1 0 .
+
+
 
 srf_asp_noprobe:
 	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker asp.pdb scaled_charmm22.siz charmm.crg asp_scaledcharmm_noprobe_1.srf asp.crg 0 0.0 1 1 1 0 .
