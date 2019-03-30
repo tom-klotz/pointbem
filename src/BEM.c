@@ -1159,7 +1159,7 @@ PetscErrorCode NonlinearAnderson(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscE
   Vec temp;
   PetscReal sigmatop, sigmabot, sigma;
   PetscReal beta = 1;
-  PetscInt maxIter=15;
+  PetscInt maxIter=20;
   PetscReal flops[maxIter+1];
   PetscReal errors[maxIter+1];
 
@@ -1187,6 +1187,8 @@ PetscErrorCode NonlinearAnderson(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscE
   ierr = VecDuplicate(guess, &next);CHKERRQ(ierr); ierr = VecZeroEntries(next);CHKERRQ(ierr);
       
 
+  //get flops up until this point for problem setup
+  ierr = PetscGetFlops(flops);CHKERRQ(ierr);
   
   //create linear solver context
   ierr = KSPCreate(PETSC_COMM_WORLD, &ksp); CHKERRQ(ierr);
@@ -1206,11 +1208,22 @@ PetscErrorCode NonlinearAnderson(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscE
   //rprev = yprev - xprev
   ierr = VecWAXPY(rprev, -1.0, xprev, yprev);CHKERRQ(ierr);
 
+
+
+  //find out whether user specified stopping tolerance
+  PetscReal stopTol;
+  PetscBool set = PETSC_FALSE;
+  ierr = PetscOptionsGetReal(NULL, NULL, "-stop_tol", &stopTol, &set);CHKERRQ(ierr);
+  if(set == PETSC_FALSE)
+    stopTol=1e-16;
+  
+  PetscInt totalIterations = 0;
+
+  
   //ierr = VecView(errvec, PETSC_VIEWER_STDOUT_SELF);
   PetscReal err = 100;
   errors[0] = 100;
-  //get flops up until this point for problem setup
-  ierr = PetscGetFlops(flops);CHKERRQ(ierr);
+
   
   for(int iter=1; iter<=maxIter; ++iter)
   {
@@ -1263,11 +1276,14 @@ PetscErrorCode NonlinearAnderson(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscE
     ierr = VecWAXPY(next, -1.0, ucurr, vcurr);CHKERRQ(ierr);
     ierr = VecAYPX(next, beta, ucurr);CHKERRQ(ierr);
 
-
+    totalIterations++;
     
     ierr = PetscPrintf(PETSC_COMM_WORLD, "THE ERROR IS: %5.5e\n", err);CHKERRQ(ierr);
     errors[iter] = err;
     ierr = PetscGetFlops(flops+iter);CHKERRQ(ierr);
+
+    if(err<stopTol)
+      break;
     //printf("sol:\n");
     //ierr = VecView(*sol, PETSC_VIEWER_STDOUT_SELF); CHKERRQ(ierr);
   }
@@ -1293,7 +1309,7 @@ PetscErrorCode NonlinearAnderson(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscE
     //for "0th" iteration, output flop count at start of picard iteration
     ierr = PetscFPrintf(PETSC_COMM_SELF, flopsFile, "%d %20.20f N/A\n", 0, flops[0]);CHKERRQ(ierr);
     //for each iteration, output the flops and residual
-    for(int iter=1; iter<=maxIter; ++iter) {	  
+    for(int iter=1; iter<=totalIterations; ++iter) {	  
       //[iteration] [flops] [error]
       ierr = PetscFPrintf(PETSC_COMM_SELF, flopsFile, "%d %20.20f %5.5e\n", iter, flops[iter]-flops[0], errors[iter]);
     }
@@ -1346,7 +1362,7 @@ PetscErrorCode NonlinearPicard(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscErr
   Vec test;
   KSP ksp;
   PC pc;
-  PetscInt maxIter = 15;
+  PetscInt maxIter = 20;
   PetscReal flops[maxIter+1];
   PetscReal errors[maxIter+1];
   PetscFunctionBegin;
@@ -1376,7 +1392,14 @@ PetscErrorCode NonlinearPicard(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscErr
   ierr = PetscGetFlops(flops);CHKERRQ(ierr);
 
 
+  //find out whether user specified stopping tolerance
+  PetscReal stopTol;
+  PetscBool set = PETSC_FALSE;
+  ierr = PetscOptionsGetReal(NULL, NULL, "-stop_tol", &stopTol, &set);CHKERRQ(ierr);
+  if(set == PETSC_FALSE)
+    stopTol=1e-16;
 
+  PetscInt totalIterations = 0;
   PetscReal err= 100;
   errors[0] = 100;
   for(int iter=1; iter<=maxIter; ++iter)
@@ -1398,7 +1421,7 @@ PetscErrorCode NonlinearPicard(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscErr
 
     //solve system
     ierr = KSPSolve(ksp, b, *sol); CHKERRQ(ierr);
-
+    totalIterations++;
     
     //calculate current error, will be inaccurate on first iteration
     ierr = VecAXPY(errvec, -1.0, *sol); CHKERRQ(ierr);
@@ -1412,10 +1435,11 @@ PetscErrorCode NonlinearPicard(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscErr
       ierr = VecSum(errvec, &err);CHKERRQ(ierr);
       err = PetscSqrtReal(err);
     }
-    
+    errors[iter] = err;
     ierr = PetscGetFlops(flops+iter);CHKERRQ(ierr);
     ierr = PetscPrintf(PETSC_COMM_WORLD, "THE ERROR IS: %5.5e\n", err);CHKERRQ(ierr);
-    errors[iter] = err;
+    if(err < stopTol)
+      break;
 
   }
 
@@ -1438,7 +1462,7 @@ PetscErrorCode NonlinearPicard(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscErr
     //for "0th" iteration, output flop count at start of picard iteration
     ierr = PetscFPrintf(PETSC_COMM_SELF, flopsFile, "%d %20.20f N/A\n", 0, flops[0]);CHKERRQ(ierr);
     //for each iteration, output the flops and residual
-    for(int iter=1; iter<=maxIter; ++iter) {	  
+    for(int iter=1; iter<=totalIterations; ++iter) {
       //[iteration] [flops] [error]
       ierr = PetscFPrintf(PETSC_COMM_SELF, flopsFile, "%d %20.20f %5.5e\n", iter, flops[iter]-flops[0], errors[iter]);
     }
