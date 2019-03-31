@@ -1203,7 +1203,7 @@ PetscErrorCode NonlinearAnderson(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscE
   PetscInt dim;
   Mat A;
   Vec b;
-  KSP ksp;
+  KSP ksp, ksp2;
   PC pc;
 
   Vec xcurr, ycurr, xprev, yprev;
@@ -1244,8 +1244,10 @@ PetscErrorCode NonlinearAnderson(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscE
   //get flops up until this point for problem setup
   ierr = PetscGetFlops(flops);CHKERRQ(ierr);
   
+
   //create linear solver context
-  ierr = KSPCreate(PETSC_COMM_WORLD, &ksp); CHKERRQ(ierr);
+  ierr = KSPCreate(PETSC_COMM_SELF, &ksp); CHKERRQ(ierr);
+  ierr = KSPSetTolerances(ksp, PETSC_DEFAULT, PETSC_DEFAULT, PETSC_DEFAULT, PETSC_DEFAULT);CHKERRQ(ierr);
   
   //set up xprev, yprev, rprev
   //calculate yprev = G(xprev)
@@ -1253,12 +1255,13 @@ PetscErrorCode NonlinearAnderson(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscE
   ierr = VecCopy(guess, xprev);CHKERRQ(ierr);
   ierr = (*lhs)(xprev, &A, ctx);CHKERRQ(ierr);
   ierr = (*rhs)(xprev, &b, ctx);CHKERRQ(ierr);
+
+  //do first solve
   ierr = KSPSetOperators(ksp, A, A);CHKERRQ(ierr);
-  ierr = KSPSetTolerances(ksp, PETSC_DEFAULT, PETSC_DEFAULT, PETSC_DEFAULT, PETSC_DEFAULT);CHKERRQ(ierr);
-  //ierr = KSPSetFromOptions(ksp);CHKERRQ(ierr);
-  //ierr = KSPGetPC(ksp, &pc);
-  //ierr = PCViewFromOptions(pc, NULL, "-pc_view");CHKERRQ(ierr);
+  ierr = KSPSetFromOptions(ksp);CHKERRQ(ierr);
   ierr = KSPSolve(ksp, b, yprev);CHKERRQ(ierr);
+  ierr = KSPDestroy(&ksp);CHKERRQ(ierr);
+  ierr = KSPCreate(PETSC_COMM_SELF, &ksp);CHKERRQ(ierr);
   //rprev = yprev - xprev
   ierr = VecWAXPY(rprev, -1.0, xprev, yprev);CHKERRQ(ierr);
 
@@ -1293,11 +1296,12 @@ PetscErrorCode NonlinearAnderson(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscE
     ierr = (*lhs)(xcurr, &A, ctx); CHKERRQ(ierr);
     ierr = (*rhs)(xcurr, &b, ctx); CHKERRQ(ierr);
     //solve system for ycurr
-    ierr = KSPSetOperators(ksp, A, A); CHKERRQ(ierr);
-    ierr = KSPSetTolerances(ksp, PETSC_DEFAULT, PETSC_DEFAULT, PETSC_DEFAULT, PETSC_DEFAULT); CHKERRQ(ierr);
-    ierr = KSPSetFromOptions(ksp); CHKERRQ(ierr);
-    //ierr = KSPGetPC(ksp, &pc);
-    //ierr = PCViewFromOptions(pc, NULL, "-pc_view");CHKERRQ(ierr);
+
+
+
+    ierr = KSPSetOperators(ksp, A, A);CHKERRQ(ierr);
+    ierr = KSPSetTolerances(ksp, PETSC_DEFAULT, PETSC_DEFAULT, PETSC_DEFAULT, PETSC_DEFAULT);CHKERRQ(ierr);
+    ierr = KSPResetFromOptions(ksp);CHKERRQ(ierr);
     ierr = KSPSolve(ksp, b, ycurr); CHKERRQ(ierr);
 
     //rcurr = ycurr - xcurr
