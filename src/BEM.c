@@ -240,7 +240,7 @@ PetscErrorCode IntegratePanel(PetscInt numCorners, const PetscReal npanel[], con
   }
 
   /* I do not understand this line, and it is screwing up */
-  // if (fd < 0.0) fd = fd + 2*PETSC_PI;
+  //if (fd < 0.0) fd = fd + 2*PETSC_PI;
   if (fd < -1.0e-7) fd = fd + 2*PETSC_PI;
   if (zn < 0.0) fd = -fd;
  
@@ -289,6 +289,9 @@ PetscErrorCode makeSurfaceToSurfacePanelOperators_Laplace(DM dm, Vec w, Vec n, M
   PetscSection    coordSection;
   PetscInt        Np;
   PetscInt        i, j;
+  PetscBool viewProgress;
+  PetscBool fssIsNan, fdsIsNan;
+  PetscBool fssIsInf, fdsIsInf;
   PetscErrorCode  ierr;
 
   PetscFunctionBeginUser;
@@ -299,11 +302,29 @@ PetscErrorCode makeSurfaceToSurfacePanelOperators_Laplace(DM dm, Vec w, Vec n, M
   ierr = PetscPrintf(PETSC_COMM_WORLD, "THE Np IS: %d\n", Np);CHKERRQ(ierr);
   if (V) {ierr = MatCreateSeqDense(PETSC_COMM_SELF, Np, Np, NULL, V);CHKERRQ(ierr);}
   if (K) {ierr = MatCreateSeqDense(PETSC_COMM_SELF, Np, Np, NULL, K);CHKERRQ(ierr);}
+
+  //see if user wants to view progress
+  viewProgress = PETSC_FALSE;
+  ierr = PetscOptionsHasName(NULL, NULL, "-view_panel_progress", &viewProgress);CHKERRQ(ierr);
+  PetscInt skip=Np/523;
+  PetscInt count=0;
+  fssIsNan = PETSC_FALSE; fdsIsNan = PETSC_FALSE;
+  fssIsInf = PETSC_FALSE; fdsIsInf = PETSC_FALSE;
+  if(viewProgress) {
+    ierr = PetscPrintf(PETSC_COMM_WORLD, "Forming surface to surface panel operators...\n");CHKERRQ(ierr);
+    ierr = PetscPrintf(PETSC_COMM_WORLD, "[ %d%% ]        ", 0);CHKERRQ(ierr);
+  }
   for (i = 0; i < Np; ++i) {
+    count++;
+    if(count > skip && viewProgress == PETSC_TRUE) {
+      ierr = PetscPrintf(PETSC_COMM_WORLD, "\r[ %.2f%% ]          ",  PetscMin(100.0, (double)100*i/Np));CHKERRQ(ierr);
+      count = 0;
+    }
+    //}
     PetscScalar *coords = NULL;
     PetscReal    panel[12], R[9], v0[3];
     PetscInt     numCorners, coordSize, d, e;
-
+    
     ierr = DMPlexGetConeSize(dm, i, &numCorners);CHKERRQ(ierr);
     ierr = DMPlexVecGetClosure(dm, coordSection, coordinates, i, &coordSize, &coords);CHKERRQ(ierr);
     for (d = 0; d < 3; ++d) v0[d] = coords[d];
@@ -336,12 +357,43 @@ PetscErrorCode makeSurfaceToSurfacePanelOperators_Laplace(DM dm, Vec w, Vec n, M
       /* 'panel' is the coordinates of the panel vertices in the panel coordinate system */
       /*  TODO pass normals if we want fess for Kp */
       ierr = IntegratePanel(numCorners, panel, cloc, NULL, &fss, &fds, NULL, NULL);CHKERRQ(ierr);
+      if(isnan(fss)) {
+	fss = 0.0;
+	fssIsNan = PETSC_TRUE;
+      }
+      if(isnan(fds)) {
+	fds = 0.0;
+	fdsIsNan = PETSC_TRUE;
+      }
+
+      if(isinf(fss)) {
+	fss = 0;
+	fssIsInf = PETSC_TRUE;
+      }
+      if(isinf(fds)) {
+	fds = 0;
+	fdsIsInf = PETSC_TRUE;
+      }
+      
 
       if (V) {ierr = MatSetValue(*V, j, i, fss*fac, INSERT_VALUES);CHKERRQ(ierr);}
       if (K) {ierr = MatSetValue(*K, j, i, fds*fac, INSERT_VALUES);CHKERRQ(ierr);}
       /* if (Kp) {ierr = MatSetValue(*singleLayer, j, i, fess/4/PETSC_PI, INSERT_VALUES);CHKERRQ(ierr);} */
     }
   }
+  if(fdsIsNan) {
+    ierr = PetscPrintf(PETSC_COMM_WORLD, "\nDouble layer operator had at least one NaN value.\n");CHKERRQ(ierr);
+  }
+  if(fssIsNan) {
+    ierr = PetscPrintf(PETSC_COMM_WORLD, "\nSingle layer operator had at least one NaN value.\n");CHKERRQ(ierr);
+  }
+  if(fdsIsInf) {
+    ierr = PetscPrintf(PETSC_COMM_WORLD, "\nDouble layer operator had at least one Inf value.\n");CHKERRQ(ierr);
+  }
+  if(fssIsInf) {
+    ierr = PetscPrintf(PETSC_COMM_WORLD, "\nSingle layer operator had at least one Inf value.\n");CHKERRQ(ierr);
+  }
+  
   ierr = PetscLogFlops(37.0 * ((double)Np)*Np + 91.0 * Np + 2.0);CHKERRQ(ierr);
   if (V) {ierr = PetscLogFlops(((double)Np)*Np);CHKERRQ(ierr);}
   if (K) {ierr = PetscLogFlops(((double)Np)*Np);CHKERRQ(ierr);}
