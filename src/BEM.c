@@ -1246,7 +1246,7 @@ PetscErrorCode NonlinearAnderson(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscE
   
 
   //create linear solver context
-  ierr = KSPCreate(PETSC_COMM_SELF, &ksp); CHKERRQ(ierr);
+  ierr = KSPCreate(PETSC_COMM_WORLD, &ksp); CHKERRQ(ierr);
   ierr = KSPSetTolerances(ksp, PETSC_DEFAULT, PETSC_DEFAULT, PETSC_DEFAULT, PETSC_DEFAULT);CHKERRQ(ierr);
   
   //set up xprev, yprev, rprev
@@ -1258,10 +1258,9 @@ PetscErrorCode NonlinearAnderson(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscE
 
   //do first solve
   ierr = KSPSetOperators(ksp, A, A);CHKERRQ(ierr);
-  ierr = KSPSetFromOptions(ksp);CHKERRQ(ierr);
+  ierr = KSPResetFromOptions(ksp);CHKERRQ(ierr);
   ierr = KSPSolve(ksp, b, yprev);CHKERRQ(ierr);
-  ierr = KSPDestroy(&ksp);CHKERRQ(ierr);
-  ierr = KSPCreate(PETSC_COMM_SELF, &ksp);CHKERRQ(ierr);
+
   //rprev = yprev - xprev
   ierr = VecWAXPY(rprev, -1.0, xprev, yprev);CHKERRQ(ierr);
 
@@ -1296,12 +1295,9 @@ PetscErrorCode NonlinearAnderson(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscE
     ierr = (*lhs)(xcurr, &A, ctx); CHKERRQ(ierr);
     ierr = (*rhs)(xcurr, &b, ctx); CHKERRQ(ierr);
     //solve system for ycurr
-
-
-
+    
     ierr = KSPSetOperators(ksp, A, A);CHKERRQ(ierr);
-    ierr = KSPSetTolerances(ksp, PETSC_DEFAULT, PETSC_DEFAULT, PETSC_DEFAULT, PETSC_DEFAULT);CHKERRQ(ierr);
-    ierr = KSPResetFromOptions(ksp);CHKERRQ(ierr);
+    ierr = KSPSetFromOptions(ksp);CHKERRQ(ierr);
     ierr = KSPSolve(ksp, b, ycurr); CHKERRQ(ierr);
 
     //rcurr = ycurr - xcurr
