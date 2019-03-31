@@ -314,12 +314,12 @@ PetscErrorCode makeSurfaceToSurfacePanelOperators_Laplace(DM dm, Vec w, Vec n, M
   fssIsInf = PETSC_FALSE; fdsIsInf = PETSC_FALSE;
   if(viewProgress) {
     ierr = PetscPrintf(PETSC_COMM_WORLD, "Forming surface to surface panel operators...\n");CHKERRQ(ierr);
-    ierr = PetscPrintf(PETSC_COMM_WORLD, "[ %d%% ]        ", 0);CHKERRQ(ierr);
+    ierr = PetscPrintf(PETSC_COMM_WORLD, "  [ %d%% ]        \r", 0);CHKERRQ(ierr);
   }
   for (i = 0; i < Np; ++i) {
     count++;
     if(count > skip && viewProgress == PETSC_TRUE) {
-      ierr = PetscPrintf(PETSC_COMM_WORLD, "\r[ %.2f%% ]          ",  PetscMin(100.0, (double)100*i/Np));CHKERRQ(ierr);
+      ierr = PetscPrintf(PETSC_COMM_WORLD, "\r  [ %.2f%% ]          \r",  PetscMin(100.0, (double)100*i/Np));CHKERRQ(ierr);
       count = 0;
     }
     //}
