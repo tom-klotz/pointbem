@@ -11,6 +11,8 @@
 PetscLogEvent CalcE_Event, CalcL_Event, CalcR_Event, CalcStoQ_Event, CalcStoS_Event, IntegratePanel_Event;
 
 
+const PetscReal fix_value = 1.0e-12;
+
 
 #undef __FUNCT__
 #define __FUNCT__ "doAnalytical"
@@ -358,20 +360,20 @@ PetscErrorCode makeSurfaceToSurfacePanelOperators_Laplace(DM dm, Vec w, Vec n, M
       /*  TODO pass normals if we want fess for Kp */
       ierr = IntegratePanel(numCorners, panel, cloc, NULL, &fss, &fds, NULL, NULL);CHKERRQ(ierr);
       if(isnan(fss)) {
-	fss = 0.0;
+	fss = fix_value;
 	fssIsNan = PETSC_TRUE;
       }
       if(isnan(fds)) {
-	fds = 0.0;
+	fds = fix_value;
 	fdsIsNan = PETSC_TRUE;
       }
 
       if(isinf(fss)) {
-	fss = 0;
+	fss = fix_value;
 	fssIsInf = PETSC_TRUE;
       }
       if(isinf(fds)) {
-	fds = 0;
+	fds = fix_value;
 	fdsIsInf = PETSC_TRUE;
       }
       
