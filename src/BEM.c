@@ -1025,6 +1025,11 @@ PetscErrorCode FormASCNonlinearMatrix(Vec sigma, Mat *A, NonlinearContext *ctx)
 
   //calculate hEn
   ierr = nonlinearH(En, ctx->hctx, &hEn);CHKERRQ(ierr);
+
+
+  //view electric field or nonlinearity
+  ierr = MatFormViewOptions(En, hEn, ctx);CHKERRQ(ierr);
+
   
   //A = I - 2*epsHat*K' - 2*epshat*h(En)
   ierr = MatDiagonalSet(*A, hEn, ADD_VALUES);CHKERRQ(ierr);
@@ -1070,6 +1075,24 @@ PetscErrorCode FormASCNonlinearMatrix(Vec sigma, Mat *A, NonlinearContext *ctx)
 
   PetscFunctionReturn(0);
 }
+
+
+#undef __FUNCT__
+#define __FUNCT__ "MatFormViewOptions"
+PetscErrorCode MatFormViewOptions(Vec En, Vec hEn, NonlinearContext *ctx) {
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  if(ctx->En != NULL) {
+    ierr = VecCopy(En, ctx->En);CHKERRQ(ierr);
+  }
+  if(ctx->hEn != NULL) {
+    ierr = VecCopy(hEn, ctx->hEn);CHKERRQ(ierr);
+  }
+  
+  PetscFunctionReturn(0);
+}
+
 
 #undef __FUNCT__
 #define __FUNCT__ "FastRHS"
@@ -1349,6 +1372,8 @@ PetscErrorCode NonlinearAnderson(PetscErrorCode (*lhs)(Vec, Mat*, void*), PetscE
     *estError = err;
   }
 
+  //
+  
   //check if user wants to output flop-precision
   PetscBool outputFlops = PETSC_FALSE;
   PetscInt lineSize = 200;
@@ -1599,12 +1624,19 @@ PetscErrorCode makeBEMPcmQualReactionPotentialNonlinear(DM dm, BEMType bem, HCon
   PetscInt w_size;
   ierr = VecGetSize(w, &w_size);CHKERRQ(ierr);
   printf("THE SIZE OF W IS: %d\n", w_size);
+
+  
   ierr = VecDuplicate(w, &t0);CHKERRQ(ierr);
   ierr = VecDuplicate(t0, &t1);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) t0, "Coulomb_Surface_Potential");CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) t1, "Reaction_Surface_Potential");CHKERRQ(ierr);
 
-  //ierr = MatMult(B, pqr->q, t0);CHKERRQ(ierr);
+
+  
+
+
+  
+
 
 
   
@@ -1635,7 +1667,16 @@ PetscErrorCode makeBEMPcmQualReactionPotentialNonlinear(DM dm, BEMType bem, HCon
   nctx.Bq     = &t0;
   nctx.w      = &w;
   nctx.hctx   = &params;
-
+  PetscBool wantsNonlinearView = PETSC_FALSE;
+  PetscBool wantsElecfieldView = PETSC_FALSE;
+  ierr = PetscOptionsHasName(NULL, NULL, "-elecfield_view", &wantsElecfieldView);CHKERRQ(ierr);
+  ierr = PetscOptionsHasName(NULL, NULL, "-nonlinear_view", &wantsNonlinearView);CHKERRQ(ierr);
+  if(wantsElecfieldView) {
+    ierr = VecDuplicate(w, &nctx.En);CHKERRQ(ierr);CHKERRQ(ierr);
+  }
+  if(wantsNonlinearView) {
+    ierr = VecDuplicate(w, &nctx.hEn);CHKERRQ(ierr);
+  }
   
   //checks which LHS and RHS to use
   PetscBool fastPicard = PETSC_FALSE;
@@ -1687,6 +1728,18 @@ PetscErrorCode makeBEMPcmQualReactionPotentialNonlinear(DM dm, BEMType bem, HCon
   ierr = SNESSolve(snes, t0, t1);CHKERRQ(ierr);
   ierr = SNESDestroy(&snes);CHKERRQ(ierr);
   */
+
+  
+  //clean up nctx
+  if(nctx.En) {
+    ierr = VecViewFromOptions(nctx.En, NULL, "-elecfield_view");CHKERRQ(ierr);
+    ierr = VecDestroy(&nctx.En);CHKERRQ(ierr);
+  }
+  if(nctx.hEn) {
+    ierr = VecViewFromOptions(nctx.hEn, NULL, "-nonlinear_view");CHKERRQ(ierr);
+    ierr = VecDestroy(&nctx.hEn);CHKERRQ(ierr);
+  }
+  
 
   ierr = PetscPrintf(PETSC_COMM_WORLD, "viewing charges...\n");
   ierr = VecViewFromOptions(t1, NULL, "-charge_view");CHKERRQ(ierr);
@@ -1923,13 +1976,11 @@ PetscErrorCode CalculateBEMSolvationEnergy(DM dm, SolvationContext *ctx, const c
     else {
       ierr = makeBEMPcmQualReactionPotentialNonlinear(dm, bem, params, ctx, epsIn, epsOut, pqr, coords, w, n, react, estError);CHKERRQ(ierr);
     }
-    L = NULL;
-    ierr = PetscLogEventBegin(CalcE_Event, L, react, pqr->q, 0);CHKERRQ(ierr);
+    
     break;
   }
-
-
-  
+  L = NULL;
+  ierr = PetscLogEventBegin(CalcE_Event, L, react, pqr->q, 0);CHKERRQ(ierr);  
   ierr = VecDot(pqr->q, react, E);CHKERRQ(ierr);
   *E  *= cf * 0.5;
   ierr = PetscLogEventEnd(CalcE_Event, L, react, pqr->q, 0);CHKERRQ(ierr);

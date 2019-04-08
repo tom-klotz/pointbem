@@ -19,6 +19,8 @@ typedef struct {
   Mat*      Elec;
   Vec*      Bq;
   Vec*      w;
+  Vec      En;
+  Vec      hEn;
   HContext* hctx;
 } NonlinearContext;
 
@@ -79,4 +81,5 @@ PetscErrorCode ProcessOptions(MPI_Comm comm, SolvationContext *ctx);
 PetscErrorCode workprectests(int argc, char **argv);
 PetscErrorCode CalcASCResidual(SNES snes, Vec x, Vec resid, NonlinearContext *ctx);
 PetscErrorCode ComputeBEMNonlinearJacobian(SNES snes, Vec x, Mat J, Mat P, NonlinearContext *ctx);
+PetscErrorCode MatFormViewOptions(Vec En, Vec hEn, NonlinearContext *ctx);
 #endif
