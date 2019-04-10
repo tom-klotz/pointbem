@@ -1083,10 +1083,10 @@ PetscErrorCode MatFormViewOptions(Vec En, Vec hEn, NonlinearContext *ctx) {
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  if(ctx->En != NULL) {
+  if(ctx->wantsEnView == PETSC_TRUE) {
     ierr = VecCopy(En, ctx->En);CHKERRQ(ierr);
   }
-  if(ctx->hEn != NULL) {
+  if(ctx->wantshEnView == PETSC_TRUE) {
     ierr = VecCopy(hEn, ctx->hEn);CHKERRQ(ierr);
   }
   
@@ -1667,14 +1667,14 @@ PetscErrorCode makeBEMPcmQualReactionPotentialNonlinear(DM dm, BEMType bem, HCon
   nctx.Bq     = &t0;
   nctx.w      = &w;
   nctx.hctx   = &params;
-  PetscBool wantsNonlinearView = PETSC_FALSE;
-  PetscBool wantsElecfieldView = PETSC_FALSE;
-  ierr = PetscOptionsHasName(NULL, NULL, "-elecfield_view", &wantsElecfieldView);CHKERRQ(ierr);
-  ierr = PetscOptionsHasName(NULL, NULL, "-nonlinear_view", &wantsNonlinearView);CHKERRQ(ierr);
-  if(wantsElecfieldView) {
+  nctx.wantshEnView = PETSC_FALSE;
+  nctx.wantsEnView = PETSC_FALSE;
+  ierr = PetscOptionsHasName(NULL, NULL, "-elecfield_view", &nctx.wantsEnView);CHKERRQ(ierr);
+  ierr = PetscOptionsHasName(NULL, NULL, "-nonlinear_view", &nctx.wantshEnView);CHKERRQ(ierr);
+  if(nctx.wantsEnView) {
     ierr = VecDuplicate(w, &nctx.En);CHKERRQ(ierr);CHKERRQ(ierr);
   }
-  if(wantsNonlinearView) {
+  if(nctx.wantshEnView) {
     ierr = VecDuplicate(w, &nctx.hEn);CHKERRQ(ierr);
   }
   
@@ -1731,11 +1731,11 @@ PetscErrorCode makeBEMPcmQualReactionPotentialNonlinear(DM dm, BEMType bem, HCon
 
   
   //clean up nctx
-  if(nctx.En) {
+  if(nctx.wantsEnView == PETSC_TRUE) {
     ierr = VecViewFromOptions(nctx.En, NULL, "-elecfield_view");CHKERRQ(ierr);
     ierr = VecDestroy(&nctx.En);CHKERRQ(ierr);
   }
-  if(nctx.hEn) {
+  if(nctx.wantshEnView == PETSC_TRUE) {
     ierr = VecViewFromOptions(nctx.hEn, NULL, "-nonlinear_view");CHKERRQ(ierr);
     ierr = VecDestroy(&nctx.hEn);CHKERRQ(ierr);
   }

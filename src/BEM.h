@@ -21,6 +21,8 @@ typedef struct {
   Vec*      w;
   Vec      En;
   Vec      hEn;
+  PetscBool wantsEnView;
+  PetscBool wantshEnView;
   HContext* hctx;
 } NonlinearContext;
 
