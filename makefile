@@ -145,27 +145,27 @@ srf_2rh3:
 	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker 2rh3.pdb charmm.siz charmm.crg 2rh3_scaledcharmm_1.srf 2rh3.crg 0 2.0 .6 1 1 0 .
 
 srf_3nir:
-	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker 3nir.pqr lolwhocares.siz dontneedthis.crg 3nir_scaledcharmm_1.srf 3nir.crg 0 2.0 .5 1 1 0 . ##
-	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker 3nir.pqr lolwhocares.siz dontneedthis.crg 3nir_scaledcharmm_2.srf 3nir.crg 0 2.0 .6 1 1 0 .
-	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker 3nir.pqr lolwhocares.siz dontneedthis.crg 3nir_scaledcharmm_3.srf 3nir.crg 0 2.0 .75 1 1 0 . ##
-	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker 3nir.pqr lolwhocares.siz dontneedthis.crg 3nir_scaledcharmm_4.srf 3nir.crg 0 2.0 .85 1 1 0 .
-	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker 3nir.pqr lolwhocares.siz dontneedthis.crg 3nir_scaledcharmm_5.srf 3nir.crg 0 2.0 1 1 1 0 . ##
-	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker 3nir.pqr lolwhocares.siz dontneedthis.crg 3nir_scaledcharmm_6.srf 3nir.crg 0 2.0 1.25 1 1 0 .
-	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker 3nir.pqr lolwhocares.siz dontneedthis.crg 3nir_scaledcharmm_7.srf 3nir.crg 0 2.0 1.5 1 1 0 . ##
-	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker 3nir.pqr lolwhocares.siz dontneedthis.crg 3nir_scaledcharmm_8.srf 3nir.crg 0 2.0 1.75 1 1 0 .
-	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker 3nir.pqr lolwhocares.siz dontneedthis.crg 3nir_scaledcharmm_9.srf 3nir.crg 0 2.0 2 1 1 0 . ##
-	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker 3nir.pqr lolwhocares.siz dontneedthis.crg 3nir_scaledcharmm_10.srf 3nir.crg 0 2.0 2.25 1 1 0 .
-	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker 3nir.pqr lolwhocares.siz dontneedthis.crg 3nir_scaledcharmm_11.srf 3nir.crg 0 2.0 2.5 1 1 0 . ##
-	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker 3nir.pqr lolwhocares.siz dontneedthis.crg 3nir_scaledcharmm_12.srf 3nir.crg 0 2.0 2.75 1 1 0 .
-	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker 3nir.pqr lolwhocares.siz dontneedthis.crg 3nir_scaledcharmm_13.srf 3nir.crg 0 2.0 3 1 1 0 . ##
-	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker 3nir.pqr lolwhocares.siz dontneedthis.crg 3nir_scaledcharmm_14.srf 3nir.crg 0 2.0 3.33 1 1 0 .
-	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker 3nir.pqr lolwhocares.siz dontneedthis.crg 3nir_scaledcharmm_15.srf 3nir.crg 0 2.0 3.66 1 1 0 .
-	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker 3nir.pqr lolwhocares.siz dontneedthis.crg 3nir_scaledcharmm_16.srf 3nir.crg 0 2.0 4 1 1 0 . ##
-	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker 3nir.pqr lolwhocares.siz dontneedthis.crg 3nir_scaledcharmm_17.srf 3nir.crg 0 2.0 4.5 1 1 0 .
-	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker 3nir.pqr lolwhocares.siz dontneedthis.crg 3nir_scaledcharmm_18.srf 3nir.crg 0 2.0 5 1 1 0 . ##
-	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker 3nir.pqr lolwhocares.siz dontneedthis.crg 3nir_scaledcharmm_19.srf 3nir.crg 0 2.0 5.5 1 1 0 .
-	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker 3nir.pqr lolwhocares.siz dontneedthis.crg 3nir_scaledcharmm_20.srf 3nir.crg 0 2.0 6 1 1 0 . ##
-	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker 3nir.pqr lolwhocares.siz dontneedthis.crg 3nir_scaledcharmm_21.srf 3nir.crg 0 2.0 18 1 1 0 . ##
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker 3nir.pqr lolwhocares.siz dontneedthis.crg 3nir_scaledcharmm_1.srf 3nir.crg 1.4 2.0 .5 1 1 0 . ##
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker 3nir.pqr lolwhocares.siz dontneedthis.crg 3nir_scaledcharmm_2.srf 3nir.crg 1.4 2.0 .6 1 1 0 .
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker 3nir.pqr lolwhocares.siz dontneedthis.crg 3nir_scaledcharmm_3.srf 3nir.crg 1.4 2.0 .75 1 1 0 . ##
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker 3nir.pqr lolwhocares.siz dontneedthis.crg 3nir_scaledcharmm_4.srf 3nir.crg 1.4 2.0 .85 1 1 0 .
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker 3nir.pqr lolwhocares.siz dontneedthis.crg 3nir_scaledcharmm_5.srf 3nir.crg 1.4 2.0 1 1 1 0 . ##
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker 3nir.pqr lolwhocares.siz dontneedthis.crg 3nir_scaledcharmm_6.srf 3nir.crg 1.4 2.0 1.25 1 1 0 .
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker 3nir.pqr lolwhocares.siz dontneedthis.crg 3nir_scaledcharmm_7.srf 3nir.crg 1.4 2.0 1.5 1 1 0 . ##
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker 3nir.pqr lolwhocares.siz dontneedthis.crg 3nir_scaledcharmm_8.srf 3nir.crg 1.4 2.0 1.75 1 1 0 .
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker 3nir.pqr lolwhocares.siz dontneedthis.crg 3nir_scaledcharmm_9.srf 3nir.crg 1.4 2.0 2 1 1 0 . ##
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker 3nir.pqr lolwhocares.siz dontneedthis.crg 3nir_scaledcharmm_10.srf 3nir.crg 1.4 2.0 2.25 1 1 0 .
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker 3nir.pqr lolwhocares.siz dontneedthis.crg 3nir_scaledcharmm_11.srf 3nir.crg 1.4 2.0 2.5 1 1 0 . ##
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker 3nir.pqr lolwhocares.siz dontneedthis.crg 3nir_scaledcharmm_12.srf 3nir.crg 1.4 2.0 2.75 1 1 0 .
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker 3nir.pqr lolwhocares.siz dontneedthis.crg 3nir_scaledcharmm_13.srf 3nir.crg 1.4 2.0 3 1 1 0 . ##
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker 3nir.pqr lolwhocares.siz dontneedthis.crg 3nir_scaledcharmm_14.srf 3nir.crg 1.4 2.0 3.33 1 1 0 .
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker 3nir.pqr lolwhocares.siz dontneedthis.crg 3nir_scaledcharmm_15.srf 3nir.crg 1.4 2.0 3.66 1 1 0 .
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker 3nir.pqr lolwhocares.siz dontneedthis.crg 3nir_scaledcharmm_16.srf 3nir.crg 1.4 2.0 4 1 1 0 . ##
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker 3nir.pqr lolwhocares.siz dontneedthis.crg 3nir_scaledcharmm_17.srf 3nir.crg 1.4 2.0 4.5 1 1 0 .
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker 3nir.pqr lolwhocares.siz dontneedthis.crg 3nir_scaledcharmm_18.srf 3nir.crg 1.4 2.0 5 1 1 0 . ##
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker 3nir.pqr lolwhocares.siz dontneedthis.crg 3nir_scaledcharmm_19.srf 3nir.crg 1.4 2.0 5.5 1 1 0 .
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker 3nir.pqr lolwhocares.siz dontneedthis.crg 3nir_scaledcharmm_20.srf 3nir.crg 1.4 2.0 6 1 1 0 . ##
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker 3nir.pqr lolwhocares.siz dontneedthis.crg 3nir_scaledcharmm_21.srf 3nir.crg 1.4 2.0 18 1 1 0 . ##
 
 
 srf_1hco:
