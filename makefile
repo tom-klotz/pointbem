@@ -8,21 +8,27 @@ srf_setup:
 	rm -f *.srf geometry/surf*
 
 srf_sphere:
-	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker sphere_R6.pdb radii.siz charmm.crg sphere_R6_vdens0125.srf sphere.crg 1.4 2.0 0.125 1 1 0 .
-	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker sphere_R6.pdb radii.siz charmm.crg sphere_R6_vdens025.srf sphere.crg 1.4 2.0 0.25 1 1 0 .
-	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker sphere_R6.pdb radii.siz charmm.crg sphere_R6_vdens05.srf sphere.crg 1.4 2.0 0.5 1 1 0 .
-	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker sphere_R6.pdb radii.siz charmm.crg sphere_R6_vdens1.srf sphere.crg 1.4 2.0 1 1 1 0 .
-	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker sphere_R6.pdb radii.siz charmm.crg sphere_R6_vdens2.srf sphere.crg 1.4 2.0 2 1 1 0 .
-	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker sphere_R6.pdb radii.siz charmm.crg sphere_R6_vdens3.srf sphere.crg 1.4 2.0 3 1 1 0 .
-	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker sphere_R6.pdb radii.siz charmm.crg sphere_R6_vdens4.srf sphere.crg 1.4 2.0 4 1 1 0 .
-	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker sphere_R6.pdb radii.siz charmm.crg sphere_R6_vdens5.srf sphere.crg 1.4 2.0 5 1 1 0 .
-	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker sphere_R6.pdb radii.siz charmm.crg sphere_R6_vdens6.srf sphere.crg 1.4 2.0 6 1 1 0 .
-	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker sphere_R6.pdb radii.siz charmm.crg sphere_R6_vdens7.srf sphere.crg 1.4 2.0 7 1 1 0 .
-	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker sphere_R6.pdb radii.siz charmm.crg sphere_R6_vdens8.srf sphere.crg 1.4 2.0 8 1 1 0 .
-	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker sphere_R6.pdb radii.siz charmm.crg sphere_R6_vdens10.srf sphere.crg 1.4 2.0 10 1 1 0 .
-	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker sphere_R6.pdb radii.siz charmm.crg sphere_R6_vdens20.srf sphere.crg 1.4 2.0 20 1 1 0 .
-	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker sphere_R6.pdb radii.siz charmm.crg sphere_R6_vdens30.srf sphere.crg 1.4 2.0 30 1 1 0 .
-	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker sphere_R6.pdb radii.siz charmm.crg sphere_R6_vdens40.srf sphere.crg 1.4 2.0 40 1 1 0 .
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker sphere_R6.pdb radii.siz charmm.crg sphere_R6_vdens1.srf sphere.crg 1.4 2.0 0.125 1 1 0 .
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker sphere_R6.pdb radii.siz charmm.crg sphere_R6_vdens2.srf sphere.crg 1.4 2.0 0.25 1 1 0 .
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker sphere_R6.pdb radii.siz charmm.crg sphere_R6_vdens3.srf sphere.crg 1.4 2.0 0.5 1 1 0 .
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker sphere_R6.pdb radii.siz charmm.crg sphere_R6_vdens4.srf sphere.crg 1.4 2.0 1 1 1 0 .
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker sphere_R6.pdb radii.siz charmm.crg sphere_R6_vdens5.srf sphere.crg 1.4 2.0 1.5 1 1 0 .
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker sphere_R6.pdb radii.siz charmm.crg sphere_R6_vdens6.srf sphere.crg 1.4 2.0 2 1 1 0 .
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker sphere_R6.pdb radii.siz charmm.crg sphere_R6_vdens7.srf sphere.crg 1.4 2.0 2.5 1 1 0 .
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker sphere_R6.pdb radii.siz charmm.crg sphere_R6_vdens8.srf sphere.crg 1.4 2.0 3 1 1 0 .
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker sphere_R6.pdb radii.siz charmm.crg sphere_R6_vdens9.srf sphere.crg 1.4 2.0 3.5 1 1 0 .
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker sphere_R6.pdb radii.siz charmm.crg sphere_R6_vdens10.srf sphere.crg 1.4 2.0 4 1 1 0 .
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker sphere_R6.pdb radii.siz charmm.crg sphere_R6_vdens11.srf sphere.crg 1.4 2.0 5 1 1 0 .
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker sphere_R6.pdb radii.siz charmm.crg sphere_R6_vdens12.srf sphere.crg 1.4 2.0 6 1 1 0 .
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker sphere_R6.pdb radii.siz charmm.crg sphere_R6_vdens13.srf sphere.crg 1.4 2.0 7 1 1 0 .
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker sphere_R6.pdb radii.siz charmm.crg sphere_R6_vdens14.srf sphere.crg 1.4 2.0 8 1 1 0 .
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker sphere_R6.pdb radii.siz charmm.crg sphere_R6_vdens15.srf sphere.crg 1.4 2.0 10 1 1 0 .
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker sphere_R6.pdb radii.siz charmm.crg sphere_R6_vdens16.srf sphere.crg 1.4 2.0 13 1 1 0 .
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker sphere_R6.pdb radii.siz charmm.crg sphere_R6_vdens17.srf sphere.crg 1.4 2.0 16 1 1 0 .
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker sphere_R6.pdb radii.siz charmm.crg sphere_R6_vdens18.srf sphere.crg 1.4 2.0 20 1 1 0 .
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker sphere_R6.pdb radii.siz charmm.crg sphere_R6_vdens19.srf sphere.crg 1.4 2.0 25 1 1 0 .
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker sphere_R6.pdb radii.siz charmm.crg sphere_R6_vdens20.srf sphere.crg 1.4 2.0 30 1 1 0 .
+	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker sphere_R6.pdb radii.siz charmm.crg sphere_R6_vdens21.srf sphere.crg 1.4 2.0 40 1 1 0 .
 
 srf_sphere_noprobe:
 	cd geometry; MSMS_PATH=${MSMS_PATH} ../bin/meshmaker sphere_R6.pdb radii.siz charmm.crg sphere_R6_vdens_noprobe_0125.srf sphere.crg 0 2.0 0.125 1 1 0 .
